@@ -7,11 +7,16 @@ use Filament\Panel;
 use Filament\Widgets;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Http\Middleware\Authenticate;
+// --- TAMBAHKAN 2 IMPORT INI ---
+use Filament\View\PanelsRenderHook;
+use Illuminate\Support\Facades\Blade;
+// ------------------------------
+use Filament\Http\Middleware\Authenticate; // <-- Dan ini
+use Filament\Support\Facades\FilamentView;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Cookie\Middleware\EncryptCookies;
-use Filament\Http\Middleware\AuthenticateSession;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -40,12 +45,13 @@ class AdminPanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
-                Pages\Dashboard::class,
+                // Pages\Dashboard::class,
+                \App\Filament\Pages\Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
-                Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
+                // Widgets\AccountWidget::class,
+                // Widgets\FilamentInfoWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -61,5 +67,19 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ]);
+    }
+
+    public function boot(): void
+    {
+        FilamentView::registerRenderHook(
+            // 🔴 HAPUS ATAU GANTI BARIS INI:
+            // PanelsRenderHook::FOOTER,
+            
+            // 🟢 GANTI MENJADI INI:
+            PanelsRenderHook::CONTENT_END,
+            
+            // Konten tetap sama
+            fn (): string => Blade::render("@include('filament.layout.footer')")
+        );
     }
 }

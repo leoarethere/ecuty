@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\CutiResource\Pages;
 
+use App\Models\User;
 use App\Models\Employee;
+use App\Models\UnitKerja;
 use Illuminate\Support\Facades\Auth;
 use App\Filament\Resources\CutiResource;
 use Filament\Notifications\Notification;
@@ -106,6 +108,31 @@ class CreateCuti extends CreateRecord
                     ->send();
                     
                 $this->halt();
+            }
+        }
+    }
+
+    protected function afterCreate(): void
+    {
+        $cuti = $this->record;
+        
+        // Cari Ketua Unit dari Pegawai yang mengajukan
+        $unitKerja = $cuti->employee->unitKerja;
+        
+        if ($unitKerja && $unitKerja->ketua_user_id) {
+            $ketuaTim = User::find($unitKerja->ketua_user_id);
+
+            if ($ketuaTim) {
+                Notification::make()
+                    ->title('Pengajuan Cuti Baru')
+                    ->body("Pegawai {$cuti->employee->nama} mengajukan cuti. Mohon diperiksa.")
+                    ->icon('heroicon-o-document-text')
+                    ->warning() // Warna kuning
+                    ->actions([
+                        \Filament\Notifications\Actions\Action::make('Lihat')
+                            ->url(CutiResource::getUrl('index')),
+                    ])
+                    ->sendToDatabase($ketuaTim);
             }
         }
     }

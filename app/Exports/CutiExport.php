@@ -66,31 +66,45 @@ class CutiExport implements
     }
 
     /**
-     * Mapping data untuk setiap row
-     */
+    * Memetakan data untuk setiap baris
+    */
     public function map($cuti): array
     {
-        static $no = 0;
-        $no++;
-
-        // Hitung lama cuti
-        $lamaCuti = Carbon::parse($cuti->tanggal_mulai)
-                          ->diffInDays(Carbon::parse($cuti->tanggal_akhir)) + 1;
+        // Hitung lama cuti (opsional, sesuaikan dengan kebutuhan kolommu)
+        $lamaCuti = \Carbon\Carbon::parse($cuti->tanggal_mulai)
+            ->diffInDays(\Carbon\Carbon::parse($cuti->tanggal_akhir)) + 1;
 
         return [
-            $no,
-            $cuti->employee->NIP ?? '-',
+            // Kolom 1: No (Bisa pakai $cuti->id atau counter manual jika ada)
+            $cuti->id, 
+
+            // Kolom 2: NIP (INI PERBAIKANNYA)
+            // Tambahkan spasi kosong di depan agar dibaca sebagai teks oleh Excel
+            " " . ($cuti->employee->NIP ?? '-'), 
+            
+            // Kolom 3: Nama
             $cuti->employee->nama ?? '-',
-            $cuti->employee->jabatan ?? '-',
-            $cuti->employee->unit_kerja ?? '-',
-            $cuti->jenis_cuti ?? '-',
-            Carbon::parse($cuti->tanggal_mulai)->format('d/m/Y'),
-            Carbon::parse($cuti->tanggal_akhir)->format('d/m/Y'),
-            $lamaCuti . ' hari',
-            $cuti->alasan ?? '-',
-            $cuti->alamat_selama_cuti ?? '-',
-            $cuti->status_global ?? '-',
-            Carbon::parse($cuti->created_at)->format('d/m/Y H:i'),
+            
+            // Kolom 4: Unit Kerja
+            $cuti->employee->unitKerja->nama ?? '-',
+            
+            // Kolom 5: Jenis Cuti
+            $cuti->jenis_cuti,
+            
+            // Kolom 6: Tgl Mulai
+            $cuti->tanggal_mulai,
+            
+            // Kolom 7: Tgl Akhir
+            $cuti->tanggal_akhir,
+            
+            // Kolom 8: Lama (Hari)
+            $lamaCuti . ' Hari',
+            
+            // Kolom 9: Alasan
+            $cuti->alasan,
+            
+            // Kolom 10: Status
+            $cuti->status_global,
         ];
     }
 

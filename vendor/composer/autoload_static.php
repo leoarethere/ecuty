@@ -197,6 +197,8 @@ class ComposerStaticInit8c73c8e7169a8ff98d4f6ef2b8e4c9af
         array (
             'Fruitcake\\Cors\\' => 15,
             'FontLib\\' => 8,
+            'Flowframe\\Trend\\Database\\Factories\\' => 35,
+            'Flowframe\\Trend\\' => 16,
             'Filament\\Widgets\\' => 17,
             'Filament\\Tables\\' => 16,
             'Filament\\Support\\' => 17,
@@ -626,6 +628,14 @@ class ComposerStaticInit8c73c8e7169a8ff98d4f6ef2b8e4c9af
         array (
             0 => __DIR__ . '/..' . '/dompdf/php-font-lib/src/FontLib',
         ),
+        'Flowframe\\Trend\\Database\\Factories\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/flowframe/laravel-trend/database/factories',
+        ),
+        'Flowframe\\Trend\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/flowframe/laravel-trend/src',
+        ),
         'Filament\\Widgets\\' => 
         array (
             0 => __DIR__ . '/..' . '/filament/widgets/src',
@@ -782,6 +792,7 @@ class ComposerStaticInit8c73c8e7169a8ff98d4f6ef2b8e4c9af
         'AnourValar\\EloquentSerialize\\Service' => __DIR__ . '/..' . '/anourvalar/eloquent-serialize/src/Service.php',
         'App\\Exports\\CutiExport' => __DIR__ . '/../..' . '/app/Exports/CutiExport.php',
         'App\\Exports\\FormCutiExport' => __DIR__ . '/../..' . '/app/Exports/FormCutiExport.php',
+        'App\\Filament\\Pages\\Dashboard' => __DIR__ . '/../..' . '/app/Filament/Pages/Dashboard.php',
         'App\\Filament\\Resources\\CutiResource' => __DIR__ . '/../..' . '/app/Filament/Resources/CutiResource.php',
         'App\\Filament\\Resources\\CutiResource\\Pages\\CreateCuti' => __DIR__ . '/../..' . '/app/Filament/Resources/CutiResource/Pages/CreateCuti.php',
         'App\\Filament\\Resources\\CutiResource\\Pages\\EditCuti' => __DIR__ . '/../..' . '/app/Filament/Resources/CutiResource/Pages/EditCuti.php',
@@ -800,6 +811,7 @@ class ComposerStaticInit8c73c8e7169a8ff98d4f6ef2b8e4c9af
         'App\\Filament\\Resources\\UserResource\\Pages\\ListUsers' => __DIR__ . '/../..' . '/app/Filament/Resources/UserResource/Pages/ListUsers.php',
         'App\\Filament\\Widgets\\CutiChart' => __DIR__ . '/../..' . '/app/Filament/Widgets/CutiChart.php',
         'App\\Filament\\Widgets\\CutiStatsOverview' => __DIR__ . '/../..' . '/app/Filament/Widgets/CutiStatsOverview.php',
+        'App\\Filament\\Widgets\\WelcomeHeader' => __DIR__ . '/../..' . '/app/Filament/Widgets/WelcomeHeader.php',
         'App\\Http\\Controllers\\Controller' => __DIR__ . '/../..' . '/app/Http/Controllers/Controller.php',
         'App\\Models\\Cuti' => __DIR__ . '/../..' . '/app/Models/Cuti.php',
         'App\\Models\\Employee' => __DIR__ . '/../..' . '/app/Models/Employee.php',
@@ -3077,6 +3089,13 @@ class ComposerStaticInit8c73c8e7169a8ff98d4f6ef2b8e4c9af
         'Filament\\Widgets\\Widget' => __DIR__ . '/..' . '/filament/widgets/src/Widget.php',
         'Filament\\Widgets\\WidgetConfiguration' => __DIR__ . '/..' . '/filament/widgets/src/WidgetConfiguration.php',
         'Filament\\Widgets\\WidgetsServiceProvider' => __DIR__ . '/..' . '/filament/widgets/src/WidgetsServiceProvider.php',
+        'Flowframe\\Trend\\Adapters\\AbstractAdapter' => __DIR__ . '/..' . '/flowframe/laravel-trend/src/Adapters/AbstractAdapter.php',
+        'Flowframe\\Trend\\Adapters\\MySqlAdapter' => __DIR__ . '/..' . '/flowframe/laravel-trend/src/Adapters/MySqlAdapter.php',
+        'Flowframe\\Trend\\Adapters\\PgsqlAdapter' => __DIR__ . '/..' . '/flowframe/laravel-trend/src/Adapters/PgsqlAdapter.php',
+        'Flowframe\\Trend\\Adapters\\SqliteAdapter' => __DIR__ . '/..' . '/flowframe/laravel-trend/src/Adapters/SqliteAdapter.php',
+        'Flowframe\\Trend\\Trend' => __DIR__ . '/..' . '/flowframe/laravel-trend/src/Trend.php',
+        'Flowframe\\Trend\\TrendServiceProvider' => __DIR__ . '/..' . '/flowframe/laravel-trend/src/TrendServiceProvider.php',
+        'Flowframe\\Trend\\TrendValue' => __DIR__ . '/..' . '/flowframe/laravel-trend/src/TrendValue.php',
         'FontLib\\AdobeFontMetrics' => __DIR__ . '/..' . '/dompdf/php-font-lib/src/FontLib/AdobeFontMetrics.php',
         'FontLib\\BinaryStream' => __DIR__ . '/..' . '/dompdf/php-font-lib/src/FontLib/BinaryStream.php',
         'FontLib\\EOT\\File' => __DIR__ . '/..' . '/dompdf/php-font-lib/src/FontLib/EOT/File.php',

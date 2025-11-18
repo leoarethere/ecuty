@@ -171,9 +171,29 @@ class CutiResource extends Resource
 
                         if ($data['status_atasan_langsung'] === 'approved') {
                             $record->status_global = 'Menunggu Persetujuan Tata Usaha';
+                            
+                            // === NOTIFIKASI KE TATA USAHA ===
+                            // Kirim ke SEMUA user dengan role 'tata_usaha'
+                            $penerima = \App\Models\User::where('role', 'tata_usaha')->get();
+                            
+                            Notification::make()
+                                ->title('Persetujuan Cuti (Tahap 2)')
+                                ->body("Pengajuan {$record->employee->nama} telah disetujui Ketua Tim. Menunggu verifikasi TU.")
+                                ->success()
+                                ->sendToDatabase($penerima);
+
                         } else {
                             $namaUnit = $record->employee->unitKerja->nama ?? 'Unit';
                             $record->status_global = "Ditolak (oleh Ketua $namaUnit)";
+                            
+                            // === NOTIFIKASI BALIK KE PEGAWAI (JIKA DITOLAK) ===
+                            if ($record->employee->user) {
+                                Notification::make()
+                                    ->title('Pengajuan Ditolak')
+                                    ->body("Mohon maaf, pengajuan cuti Anda ditolak oleh Ketua Tim.")
+                                    ->danger()
+                                    ->sendToDatabase($record->employee->user);
+                            }
                         }
                         $record->save();
                     }),
@@ -200,8 +220,27 @@ class CutiResource extends Resource
 
                         if ($data['status_tata_usaha'] === 'approved') {
                             $record->status_global = 'Menunggu Persetujuan Kepala';
+
+                            // === NOTIFIKASI KE KEPALA STASIUN ===
+                            $penerima = \App\Models\User::where('role', 'kepala_stasiun')->get();
+
+                            Notification::make()
+                                ->title('Persetujuan Cuti (Final)')
+                                ->body("Pengajuan {$record->employee->nama} menunggu persetujuan akhir Anda.")
+                                ->info()
+                                ->sendToDatabase($penerima);
+
                         } else {
                             $record->status_global = 'Ditolak (oleh Tata Usaha)';
+                            
+                            // === NOTIFIKASI BALIK KE PEGAWAI (JIKA DITOLAK) ===
+                            if ($record->employee->user) {
+                                Notification::make()
+                                    ->title('Pengajuan Ditolak')
+                                    ->body("Pengajuan cuti ditolak oleh Tata Usaha. Cek aplikasi untuk detail.")
+                                    ->danger()
+                                    ->sendToDatabase($record->employee->user);
+                            }
                         }
                         $record->save();
                     }),
@@ -229,37 +268,47 @@ class CutiResource extends Resource
                         $employee = $record->employee;
 
                         if ($data['status_kepala'] === 'approved') {
-                            // LOGIKA PEMOTONGAN CUTI (DARI HEAD YANG HILANG)
+                            // ... (Logika pemotongan cuti TETAPKAN DISINI, JANGAN DIHAPUS) ...
+                            
+                            // LOGIKA PEMOTONGAN DARI KODE SEBELUMNYA (Include disini)
                             if ($record->jenis_cuti === 'Cuti Tahunan') {
-                                $durasiCuti = Carbon::parse($record->tanggal_mulai)
-                                                ->diffInDays(Carbon::parse($record->tanggal_akhir)) + 1;
-                                
-                                if ($employee->sisa_cuti_tahunan < $durasiCuti) {
-                                    Notification::make()
-                                        ->title('Gagal! Sisa Cuti Tahunan tidak mencukupi.')
-                                        ->body("Pegawai {$employee->nama} hanya memiliki {$employee->sisa_cuti_tahunan} hari.")
-                                        ->danger()
-                                        ->send();
-                                    
-                                    // Jangan simpan status approved jika kuota habis
-                                    return; 
+                                $durasiCuti = Carbon::parse($record->tanggal_mulai)->diffInDays(Carbon::parse($record->tanggal_akhir)) + 1;
+                                if ($employee->sisa_cuti_tahunan >= $durasiCuti) {
+                                    $employee->sisa_cuti_tahunan -= $durasiCuti;
+                                    $employee->save();
                                 }
-                                // Kurangi kuota
-                                $employee->sisa_cuti_tahunan -= $durasiCuti;
-                                $employee->save();
                             }
+                            // -----------------------------------------------------------
 
                             $record->status_global = 'Disetujui';
+
+                            // === NOTIFIKASI SUKSES KE PEGAWAI ===
+                            if ($employee->user) {
+                                Notification::make()
+                                    ->title('Cuti DISETUJUI! 🎉')
+                                    ->body("Selamat, pengajuan cuti Anda telah disetujui Kepala Stasiun. Silakan cetak formulir.")
+                                    ->success()
+                                    ->actions([
+                                        \Filament\Notifications\Actions\Action::make('Cetak PDF')
+                                            ->url(route('filament.admin.resources.cutis.index')) // Arahkan ke tabel untuk cetak
+                                    ])
+                                    ->sendToDatabase($employee->user);
+                            }
+
                         } else {
                             $record->status_global = 'Ditolak (oleh Kepala Stasiun)';
+                            
+                            // === NOTIFIKASI DITOLAK KE PEGAWAI ===
+                            if ($employee->user) {
+                                Notification::make()
+                                    ->title('Pengajuan Ditolak')
+                                    ->body("Mohon maaf, pengajuan cuti ditolak oleh Kepala Stasiun.")
+                                    ->danger()
+                                    ->sendToDatabase($employee->user);
+                            }
                         }
                         
                         $record->save();
-
-                        // Kirim Notifikasi (Pastikan class Notification ada)
-                        if (class_exists(CutiStatusUpdated::class)) {
-                            $employee->notify(new CutiStatusUpdated($record));
-                        }
                     }),
 
                 EditAction::make(),

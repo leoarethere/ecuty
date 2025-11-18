@@ -99,6 +99,8 @@ return array(
     'GrahamCampbell\\ResultType\\' => array($vendorDir . '/graham-campbell/result-type/src'),
     'Fruitcake\\Cors\\' => array($vendorDir . '/fruitcake/php-cors/src'),
     'FontLib\\' => array($vendorDir . '/dompdf/php-font-lib/src/FontLib'),
+    'Flowframe\\Trend\\Database\\Factories\\' => array($vendorDir . '/flowframe/laravel-trend/database/factories'),
+    'Flowframe\\Trend\\' => array($vendorDir . '/flowframe/laravel-trend/src'),
     'Filament\\Widgets\\' => array($vendorDir . '/filament/widgets/src'),
     'Filament\\Tables\\' => array($vendorDir . '/filament/tables/src'),
     'Filament\\Support\\' => array($vendorDir . '/filament/support/src'),
