@@ -72,7 +72,7 @@
 
 <footer class="tvri-footer">
     <span class="tvri-text">
-        &copy; {{ date('Y') }} 
+        Copyright {{ date('Y') }} 
         <a href="https://yogyakarta.tvri.go.id/" target="_blank" class="tvri-link">
             TVRI Stasiun D.I. Yogyakarta
         </a>&lt;/&gt;

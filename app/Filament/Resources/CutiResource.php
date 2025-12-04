@@ -7,6 +7,7 @@ use Filament\Forms;
 use App\Models\Cuti;
 use Filament\Tables;
 use Filament\Forms\Get;
+use Filament\Forms\Set;
 use App\Models\Employee;
 use Filament\Forms\Form;
 use App\Models\UnitKerja;
@@ -15,8 +16,10 @@ use Filament\Resources\Resource;
 use App\Services\FormCutiGenerator;
 use Filament\Tables\Actions\Action;
 use Illuminate\Support\Facades\Auth;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Textarea;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
@@ -38,7 +41,7 @@ class CutiResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
     protected static ?string $modelLabel = 'Pengajuan Cuti';
-    protected static ?string $pluralModelLabel = 'Pengajuan Cuti';
+    protected static ?string $pluralModelLabel = 'Data Pengajuan Cuti';
     protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
@@ -67,13 +70,24 @@ class CutiResource extends Resource
                     ])
                     ->required(),
 
-                DatePicker::make('tanggal_mulai')
+                // ✅ FITUR BARU: Calendar Checkbox untuk Pemilihan Tanggal
+                Forms\Components\ViewField::make('tanggal_cuti_array')
+                    ->label('Pilih Tanggal Cuti')
+                    ->view('forms.components.calendar-checkbox')
                     ->required()
-                    ->native(false),
-                DatePicker::make('tanggal_akhir')
-                    ->required()
-                    ->native(false)
-                    ->afterOrEqual('tanggal_mulai'),
+                    ->helperText('Klik tanggal-tanggal yang Anda inginkan untuk cuti. Anda bisa memilih tanggal tidak berurutan.')
+                    ->columnSpanFull(),
+
+                // ✅ HIDDEN FIELDS: Untuk kompatibilitas dengan sistem lama
+                Forms\Components\Hidden::make('tanggal_mulai')
+                    ->default(fn ($get) => !empty($get('tanggal_cuti_array')) 
+                        ? min($get('tanggal_cuti_array')) 
+                        : null),
+                
+                Forms\Components\Hidden::make('tanggal_akhir')
+                    ->default(fn ($get) => !empty($get('tanggal_cuti_array')) 
+                        ? max($get('tanggal_cuti_array')) 
+                        : null),
 
                 Textarea::make('alasan')
                     ->label('Alasan Cuti')
@@ -107,21 +121,55 @@ class CutiResource extends Resource
                     ->visible(fn () => Auth::user()->role !== 'pegawai'),
                     
                 TextColumn::make('jenis_cuti')
-                ->label('Jenis Cuti') // Tambahkan label agar rapi
-                ->searchable(),
+                    ->label('Jenis Cuti')
+                    ->searchable(),
                 
-                // === UBAH BAGIAN TANGGAL DI BAWAH INI ===
-                TextColumn::make('tanggal_mulai')
-                    ->label('Mulai')
-                    ->date('d F Y') // Format: 18 November 2025
+                // ✅ UPDATE: Tampilkan tanggal dari array atau fallback ke range
+                TextColumn::make('tanggal_cuti')
+                    ->label('Tanggal Cuti')
+                    ->formatStateUsing(function ($record) {
+                        // Jika menggunakan sistem baru (array)
+                        if (!empty($record->tanggal_cuti_array) && is_array($record->tanggal_cuti_array)) {
+                            $dates = collect($record->tanggal_cuti_array)->sort()->values();
+                            
+                            if ($dates->count() <= 3) {
+                                return $dates->map(fn($d) => \Carbon\Carbon::parse($d)->format('d/m'))->join(', ');
+                            }
+                            
+                            $first = \Carbon\Carbon::parse($dates->first())->format('d/m/Y');
+                            $last = \Carbon\Carbon::parse($dates->last())->format('d/m/Y');
+                            return "$first ... $last";
+                        }
+                        
+                        // Fallback ke sistem lama (range)
+                        if ($record->tanggal_mulai && $record->tanggal_akhir) {
+                            $mulai = \Carbon\Carbon::parse($record->tanggal_mulai)->format('d/m');
+                            $akhir = \Carbon\Carbon::parse($record->tanggal_akhir)->format('d/m/Y');
+                            return "$mulai - $akhir";
+                        }
+                        
+                        return '-';
+                    })
+                    ->tooltip(function ($record) {
+                        if (!empty($record->tanggal_cuti_array) && is_array($record->tanggal_cuti_array)) {
+                            return collect($record->tanggal_cuti_array)
+                                ->sort()
+                                ->map(fn($d) => \Carbon\Carbon::parse($d)->format('d M Y'))
+                                ->join(', ');
+                        }
+                        return null;
+                    })
                     ->sortable(),
 
-                TextColumn::make('tanggal_akhir')
-                    ->label('Selesai')
-                    ->date('d F Y') // Format: 18 November 2025
-                    ->sortable(),
-                // ========================================
-                
+                // ✅ UPDATE: Hitung lama cuti dari array
+                TextColumn::make('lama_cuti')
+                    ->label('Lama')
+                    ->formatStateUsing(function ($record) {
+                        return $record->lama_cuti . ' Hari';
+                    })
+                    ->sortable()
+                    ->alignCenter(),
+                    
                 BadgeColumn::make('status_global')
                     ->label('Status')
                     ->colors([
@@ -129,6 +177,32 @@ class CutiResource extends Resource
                         'success' => 'Disetujui',
                         'danger' => fn ($state) => str_contains($state, 'Ditolak'),
                 ]),
+            ])
+            ->actions([
+            // ✅ FITUR BARU: Lihat Detail Pengajuan
+            Tables\Actions\ViewAction::make()
+                ->label('Lihat Detail')
+                ->icon('heroicon-o-eye')
+                ->color('info')
+                ->modalHeading(fn ($record) => 'Detail Pengajuan Cuti - ' . $record->employee->nama)
+                ->modalWidth('5xl')
+                ->modalContent(fn ($record) => view('filament.resources.cuti.view-detail', ['record' => $record]))
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Tutup'),
+
+            // Action yang sudah ada sebelumnya
+            Action::make('exportFormPdf')
+                ->label('Cetak Form PDF')
+                ->icon('heroicon-o-printer')
+                ->color('danger')
+                ->action(function (Cuti $record) {
+                    return new StreamedResponse(function () use ($record) {
+                        app(FormCutiGenerator::class)->generate($record);
+                    }, 200, [
+                        'Content-Type' => 'application/pdf',
+                        'Content-Disposition' => 'inline; filename="form_cuti.pdf"',
+                    ]);
+                }),
             ])
             ->actions([
                 // === AKSI PDF ===
@@ -173,7 +247,6 @@ class CutiResource extends Resource
                             $record->status_global = 'Menunggu Persetujuan Tata Usaha';
                             
                             // === NOTIFIKASI KE TATA USAHA ===
-                            // Kirim ke SEMUA user dengan role 'tata_usaha'
                             $penerima = \App\Models\User::where('role', 'tata_usaha')->get();
                             
                             Notification::make()
@@ -186,7 +259,6 @@ class CutiResource extends Resource
                             $namaUnit = $record->employee->unitKerja->nama ?? 'Unit';
                             $record->status_global = "Ditolak (oleh Ketua $namaUnit)";
                             
-                            // === NOTIFIKASI BALIK KE PEGAWAI (JIKA DITOLAK) ===
                             if ($record->employee->user) {
                                 Notification::make()
                                     ->title('Pengajuan Ditolak')
@@ -221,7 +293,6 @@ class CutiResource extends Resource
                         if ($data['status_tata_usaha'] === 'approved') {
                             $record->status_global = 'Menunggu Persetujuan Kepala';
 
-                            // === NOTIFIKASI KE KEPALA STASIUN ===
                             $penerima = \App\Models\User::where('role', 'kepala_stasiun')->get();
 
                             Notification::make()
@@ -233,7 +304,6 @@ class CutiResource extends Resource
                         } else {
                             $record->status_global = 'Ditolak (oleh Tata Usaha)';
                             
-                            // === NOTIFIKASI BALIK KE PEGAWAI (JIKA DITOLAK) ===
                             if ($record->employee->user) {
                                 Notification::make()
                                     ->title('Pengajuan Ditolak')
@@ -268,17 +338,15 @@ class CutiResource extends Resource
                         $employee = $record->employee;
 
                         if ($data['status_kepala'] === 'approved') {
-                            // ... (Logika pemotongan cuti TETAPKAN DISINI, JANGAN DIHAPUS) ...
-                            
-                            // LOGIKA PEMOTONGAN DARI KODE SEBELUMNYA (Include disini)
+                            // ✅ UPDATE: Gunakan helper method untuk hitung durasi
                             if ($record->jenis_cuti === 'Cuti Tahunan') {
-                                $durasiCuti = Carbon::parse($record->tanggal_mulai)->diffInDays(Carbon::parse($record->tanggal_akhir)) + 1;
+                                $durasiCuti = $record->lama_cuti; // Helper method dari model
+                                
                                 if ($employee->sisa_cuti_tahunan >= $durasiCuti) {
                                     $employee->sisa_cuti_tahunan -= $durasiCuti;
                                     $employee->save();
                                 }
                             }
-                            // -----------------------------------------------------------
 
                             $record->status_global = 'Disetujui';
 
@@ -286,11 +354,11 @@ class CutiResource extends Resource
                             if ($employee->user) {
                                 Notification::make()
                                     ->title('Cuti DISETUJUI! 🎉')
-                                    ->body("Selamat, pengajuan cuti Anda telah disetujui Kepala Stasiun. Silakan cetak formulir.")
+                                    ->body("Selamat, pengajuan cuti Anda selama {$record->lama_cuti} hari telah disetujui Kepala Stasiun. Silakan cetak formulir.")
                                     ->success()
                                     ->actions([
                                         \Filament\Notifications\Actions\Action::make('Cetak PDF')
-                                            ->url(route('filament.admin.resources.cutis.index')) // Arahkan ke tabel untuk cetak
+                                            ->url(route('filament.admin.resources.cutis.index'))
                                     ])
                                     ->sendToDatabase($employee->user);
                             }
@@ -332,7 +400,6 @@ class CutiResource extends Resource
                 return $query->where('employee_id', $user->employee->id);
             
             case 'ketua_tim': 
-                // Ketua Tim melihat pengajuan anggotanya yang butuh persetujuan dia
                 $unitKerja = UnitKerja::where('ketua_user_id', $user->id)->first();
                 
                 if ($unitKerja) {

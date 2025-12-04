@@ -4,7 +4,7 @@ return [
 
     'title' => 'Masuk',
 
-    'heading' => 'Masuk ke akun Anda',
+    'heading' => ' ',
 
     'actions' => [
 

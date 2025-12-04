@@ -63,16 +63,32 @@ class CreateCuti extends CreateRecord
             }
         }
 
-        // 2. PERBAIKAN STATUS (Sesuai Struktur Baru Unit Kerja)
-        // Menggunakan 'status_atasan_langsung' menggantikan 'status_sdm'
+        // ✅ 2. UPDATE: Auto-fill tanggal_mulai dan tanggal_akhir dari array
+        if (!empty($data['tanggal_cuti_array']) && is_array($data['tanggal_cuti_array'])) {
+            $dates = collect($data['tanggal_cuti_array'])->sort()->values();
+            $data['tanggal_mulai'] = $dates->first();
+            $data['tanggal_akhir'] = $dates->last();
+        } else {
+            // Validasi: Harus ada tanggal yang dipilih
+            Notification::make()
+                ->title('Error Validasi')
+                ->body('Anda harus memilih minimal 1 tanggal untuk cuti.')
+                ->danger()
+                ->persistent()
+                ->send();
+            
+            $this->halt();
+        }
+
+        // 3. Set Status (Sesuai Struktur Baru Unit Kerja)
         $data['status_atasan_langsung'] = 'pending'; 
         $data['status_tata_usaha'] = 'pending';
         $data['status_kepala'] = 'pending';
         
-        // 3. Set Status Global Awal
+        // 4. Set Status Global Awal
         $data['status_global'] = 'Menunggu Persetujuan Atasan Langsung';
 
-        // Validasi lampiran untuk Cuti Sakit
+        // 5. Validasi lampiran untuk Cuti Sakit
         if ($data['jenis_cuti'] === 'Cuti Sakit' && empty($data['lampiran_link'])) {
             Notification::make()
                 ->title('Error Validasi')
@@ -123,11 +139,14 @@ class CreateCuti extends CreateRecord
             $ketuaTim = User::find($unitKerja->ketua_user_id);
 
             if ($ketuaTim) {
+                // ✅ UPDATE: Tampilkan jumlah hari dari array
+                $lamaCuti = $cuti->lama_cuti;
+                
                 Notification::make()
                     ->title('Pengajuan Cuti Baru')
-                    ->body("Pegawai {$cuti->employee->nama} mengajukan cuti. Mohon diperiksa.")
+                    ->body("Pegawai {$cuti->employee->nama} mengajukan cuti selama {$lamaCuti} hari. Mohon diperiksa.")
                     ->icon('heroicon-o-document-text')
-                    ->warning() // Warna kuning
+                    ->warning()
                     ->actions([
                         \Filament\Notifications\Actions\Action::make('Lihat')
                             ->url(CutiResource::getUrl('index')),

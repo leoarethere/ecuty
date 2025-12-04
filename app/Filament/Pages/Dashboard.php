@@ -9,9 +9,9 @@ class Dashboard extends BaseDashboard
 {
     protected static ?string $navigationLabel = 'Dashboard';
     
-    // Trik: Mengosongkan Judul Halaman
+// Trik: Mengosongkan Judul Halaman
     public function getTitle(): string | Htmlable
     {
-        return ''; 
+        return 'Dashboard'; 
     }
 }

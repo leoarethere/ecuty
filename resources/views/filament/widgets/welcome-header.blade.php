@@ -7,10 +7,6 @@
         <div class="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             
             <div class="flex items-center gap-4">
-                <div class="hidden md:flex h-16 w-16 rounded-full bg-blue-600 text-white items-center justify-center text-2xl font-bold shadow-md">
-                    {{ substr($user->name, 0, 1) }}
-                </div>
-
                 <div>
                     <h2 class="text-2xl font-bold text-gray-800 dark:text-white tracking-tight">
                         {{ $greeting }}, {{ $user->name }}! 👋

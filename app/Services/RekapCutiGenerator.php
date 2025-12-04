@@ -92,7 +92,7 @@ class RekapCutiGenerator extends TCPDF
             27, // Jenis
             20, // Mulai
             20, // Akhir
-            15, // Lama
+            15, // Hari (Lama Cuti)
             40, // Alasan
             30  // Status
         ];
@@ -114,12 +114,17 @@ class RekapCutiGenerator extends TCPDF
                 continue;
             }
             
-            // Hitung lama cuti (antisipasi jika data null)
+            // === LOGIKA BARU: HITUNG LAMA CUTI ===
+            // Gunakan kolom 'lama_cuti' dari database jika ada & valid.
+            // Jika tidak (data lama), hitung manual dari selisih tanggal.
             $lamaCuti = 0;
-            if (isset($cuti->tanggal_mulai) && isset($cuti->tanggal_akhir)) {
+            if (isset($cuti->lama_cuti) && $cuti->lama_cuti > 0) {
+                $lamaCuti = $cuti->lama_cuti;
+            } elseif (isset($cuti->tanggal_mulai) && isset($cuti->tanggal_akhir)) {
                 $lamaCuti = Carbon::parse($cuti->tanggal_mulai)
                             ->diffInDays(Carbon::parse($cuti->tanggal_akhir)) + 1;
             }
+            // ======================================
 
             // === PERBAIKAN: aman terhadap relasi / field yang null ===
             $employee = isset($cuti->employee) ? $cuti->employee : null;
@@ -155,7 +160,7 @@ class RekapCutiGenerator extends TCPDF
                 (string) $jenisCuti,
                 (string) $tanggalMulai,
                 (string) $tanggalAkhir,
-                (string) $lamaCuti,
+                (string) $lamaCuti, // <--- Ini sekarang sudah menggunakan logika baru
                 (string) $alasan,
                 (string) $statusGlobal
             ];

@@ -44,8 +44,9 @@ class CutiExport implements
     {
         return [
             ['REKAP DATA PENGAJUAN CUTI'],
-            ['LPP TVRI STASIUN YOGYAKARTA'],
-            ['Periode: ' . Carbon::now()->format('d F Y')],
+            ['LEMBAGA PENYIARAN PUBLIK TELEVISI REPUBLIK INDONESIA'],
+            ['STASIUN YOGYAKARTA'],
+            ['Periode: ' . Carbon::now()->isoFormat('D MMMM Y')],
             [], // Baris kosong
             [
                 'No',
@@ -70,41 +71,66 @@ class CutiExport implements
     */
     public function map($cuti): array
     {
-        // Hitung lama cuti (opsional, sesuaikan dengan kebutuhan kolommu)
-        $lamaCuti = \Carbon\Carbon::parse($cuti->tanggal_mulai)
-            ->diffInDays(\Carbon\Carbon::parse($cuti->tanggal_akhir)) + 1;
+        // === LOGIKA BARU: HITUNG LAMA CUTI YANG AKURAT ===
+        // Prioritaskan kolom 'lama_cuti' dari database.
+        // Jika kosong (data lama), baru hitung manual dari selisih tanggal.
+        $lamaCuti = 0;
+        
+        if (isset($cuti->lama_cuti) && $cuti->lama_cuti > 0) {
+            $lamaCuti = $cuti->lama_cuti;
+        } elseif (isset($cuti->tanggal_mulai) && isset($cuti->tanggal_akhir)) {
+            $lamaCuti = \Carbon\Carbon::parse($cuti->tanggal_mulai)
+                ->diffInDays(\Carbon\Carbon::parse($cuti->tanggal_akhir)) + 1;
+        }
+        // ================================================
+
+        // Ambil nama unit kerja dengan aman
+        $unitKerja = '-';
+        if ($cuti->employee && $cuti->employee->unitKerja) {
+            $unitKerja = $cuti->employee->unitKerja->nama;
+        } elseif ($cuti->employee && $cuti->employee->unit_kerja) {
+            $unitKerja = $cuti->employee->unit_kerja; // Fallback kolom lama
+        }
 
         return [
-            // Kolom 1: No (Bisa pakai $cuti->id atau counter manual jika ada)
+            // Kolom 1: No (ID Cuti)
             $cuti->id, 
 
-            // Kolom 2: NIP (INI PERBAIKANNYA)
-            // Tambahkan spasi kosong di depan agar dibaca sebagai teks oleh Excel
+            // Kolom 2: NIP (Tambahkan spasi agar jadi text)
             " " . ($cuti->employee->NIP ?? '-'), 
             
             // Kolom 3: Nama
             $cuti->employee->nama ?? '-',
             
-            // Kolom 4: Unit Kerja
-            $cuti->employee->unitKerja->nama ?? '-',
+            // Kolom 4: Jabatan
+            $cuti->employee->jabatan ?? '-',
+
+            // Kolom 5: Unit Kerja
+            $unitKerja,
             
-            // Kolom 5: Jenis Cuti
+            // Kolom 6: Jenis Cuti
             $cuti->jenis_cuti,
             
-            // Kolom 6: Tgl Mulai
-            $cuti->tanggal_mulai,
+            // Kolom 7: Tgl Mulai
+            $cuti->tanggal_mulai ? \Carbon\Carbon::parse($cuti->tanggal_mulai)->format('d/m/Y') : '-',
             
-            // Kolom 7: Tgl Akhir
-            $cuti->tanggal_akhir,
+            // Kolom 8: Tgl Akhir
+            $cuti->tanggal_akhir ? \Carbon\Carbon::parse($cuti->tanggal_akhir)->format('d/m/Y') : '-',
             
-            // Kolom 8: Lama (Hari)
+            // Kolom 9: Lama (Hari) -> SUDAH DIPERBAIKI
             $lamaCuti . ' Hari',
             
-            // Kolom 9: Alasan
+            // Kolom 10: Alasan
             $cuti->alasan,
+
+            // Kolom 11: Alamat
+            $cuti->alamat_selama_cuti,
             
-            // Kolom 10: Status
+            // Kolom 12: Status
             $cuti->status_global,
+
+            // Kolom 13: Tanggal Diajukan
+            \Carbon\Carbon::parse($cuti->created_at)->format('d/m/Y'),
         ];
     }
 
@@ -126,7 +152,7 @@ class CutiExport implements
             'J' => 30,  // Alasan
             'K' => 30,  // Alamat
             'L' => 25,  // Status
-            'M' => 18,  // Tgl Diajukan
+            'M' => 15,  // Tgl Diajukan
         ];
     }
 
@@ -138,52 +164,27 @@ class CutiExport implements
         return [
             // Style untuk judul (row 1-3)
             1 => [
-                'font' => [
-                    'bold' => true,
-                    'size' => 14,
-                ],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_CENTER,
-                ]
+                'font' => ['bold' => true, 'size' => 14],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]
             ],
             2 => [
-                'font' => [
-                    'bold' => true,
-                    'size' => 12,
-                ],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_CENTER,
-                ]
+                'font' => ['bold' => true, 'size' => 12],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]
             ],
             3 => [
-                'font' => [
-                    'size' => 10,
-                    'italic' => true,
-                ],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_CENTER,
-                ]
+                'font' => ['size' => 10, 'italic' => true],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]
             ],
             
             // Style untuk header tabel (row 5)
             5 => [
-                'font' => [
-                    'bold' => true,
-                    'color' => ['rgb' => 'FFFFFF'],
-                ],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => '4472C4'],
-                ],
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_CENTER,
                     'vertical' => Alignment::VERTICAL_CENTER,
                 ],
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                    ],
-                ],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
             ],
         ];
     }
@@ -215,48 +216,34 @@ class CutiExport implements
                     // Border untuk semua data
                     $sheet->getStyle("A5:M{$highestRow}")->applyFromArray([
                         'borders' => [
-                            'allBorders' => [
-                                'borderStyle' => Border::BORDER_THIN,
-                                'color' => ['rgb' => '000000'],
-                            ],
+                            'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']],
                         ],
                     ]);
                     
-                    // Alignment untuk data
-                    $sheet->getStyle("A6:A{$highestRow}")->getAlignment()
-                        ->setHorizontal(Alignment::HORIZONTAL_CENTER); // No
-                    $sheet->getStyle("B6:B{$highestRow}")->getAlignment()
-                        ->setHorizontal(Alignment::HORIZONTAL_CENTER); // NIP
-                    $sheet->getStyle("G6:I{$highestRow}")->getAlignment()
-                        ->setHorizontal(Alignment::HORIZONTAL_CENTER); // Tanggal & Lama
-                    $sheet->getStyle("L6:M{$highestRow}")->getAlignment()
-                        ->setHorizontal(Alignment::HORIZONTAL_CENTER); // Status & Tgl Diajukan
+                    // Alignment Center untuk kolom tertentu
+                    // A(No), B(NIP), F(Jenis), G(Mulai), H(Akhir), I(Lama), L(Status), M(Diajukan)
+                    $centerColumns = ['A', 'B', 'G', 'H', 'I', 'L', 'M'];
+                    foreach ($centerColumns as $col) {
+                        $sheet->getStyle("{$col}6:{$col}{$highestRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    }
                     
-                    // Wrap text untuk kolom panjang
+                    // Wrap text untuk kolom panjang (Alasan & Alamat)
                     $sheet->getStyle("J6:K{$highestRow}")->getAlignment()->setWrapText(true);
                     
-                    // Set row height untuk data
+                    // Set row height
                     for ($row = 6; $row <= $highestRow; $row++) {
                         $sheet->getRowDimension($row)->setRowHeight(20);
                     }
                     
-                    // Zebra striping (warna selang-seling)
+                    // Zebra striping
                     for ($row = 6; $row <= $highestRow; $row++) {
                         if ($row % 2 == 0) {
                             $sheet->getStyle("A{$row}:M{$row}")->applyFromArray([
-                                'fill' => [
-                                    'fillType' => Fill::FILL_SOLID,
-                                    'startColor' => ['rgb' => 'F2F2F2'],
-                                ],
+                                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F2F2F2']],
                             ]);
                         }
                     }
                 }
-                
-                // Auto-fit semua kolom (opsional, hapus jika sudah ada columnWidths)
-                // foreach(range('A','M') as $col) {
-                //     $sheet->getColumnDimension($col)->setAutoSize(true);
-                // }
             },
         ];
     }
