@@ -105,7 +105,7 @@ class CutiResource extends Resource
                     ->url()
                     ->suffixIcon('heroicon-m-link')
                     ->required(fn (Get $get) => $get('jenis_cuti') === 'Cuti Sakit')
-                    ->helperText('Opsional. Wajib diisi (Link Surat Dokter) jika mengambil Cuti Sakit.')
+                    ->helperText('Opsional, tetapi Wajib diisi (Link Surat Dokter) jika mengambil Cuti Sakit.')
                     ->columnSpanFull(),
             ]);
     }

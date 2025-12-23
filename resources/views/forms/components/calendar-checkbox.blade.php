@@ -4,31 +4,26 @@
     // State management
     $statePath = $getStatePath();
     
-    // ✅ PERBAIKAN: Handle data existing saat edit
+    // Handle data existing saat edit
     $selectedDates = [];
     $rawState = $getState();
     
     if (is_array($rawState)) {
         $selectedDates = $rawState;
     } elseif (is_string($rawState)) {
-        // Jika data tersimpan sebagai JSON string
         $decoded = json_decode($rawState, true);
         $selectedDates = is_array($decoded) ? $decoded : [];
     }
     
-    // Get current month/year or use defaults
-    $currentMonth = request()->get('calendar_month', now()->month);
-    $currentYear = request()->get('calendar_year', now()->year);
+    // Get current month/year dari Alpine state (bukan query string lagi)
+    $currentMonth = now()->month;
+    $currentYear = now()->year;
     
     // Generate calendar
     $firstDay = Carbon::create($currentYear, $currentMonth, 1);
     $lastDay = $firstDay->copy()->endOfMonth();
     $daysInMonth = $lastDay->day;
-    $startDayOfWeek = $firstDay->dayOfWeek; // 0=Minggu, 1=Senin, ...
-    
-    // Previous and next month
-    $prevMonth = $firstDay->copy()->subMonth();
-    $nextMonth = $firstDay->copy()->addMonth();
+    $startDayOfWeek = $firstDay->dayOfWeek;
 @endphp
 
 <x-dynamic-component
@@ -39,6 +34,24 @@
         selectedDates: @js($selectedDates),
         currentMonth: {{ $currentMonth }},
         currentYear: {{ $currentYear }},
+        daysInMonth: 31,
+        startDayOfWeek: 0,
+        monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+        
+        // ✅ FIX 1: Debounced sync untuk mengurangi lag
+        syncTimeout: null,
+        
+        init() {
+            this.calculateCalendar();
+            this.updateRangeDisplay();
+        },
+        
+        calculateCalendar() {
+            const firstDay = new Date(this.currentYear, this.currentMonth - 1, 1);
+            const lastDay = new Date(this.currentYear, this.currentMonth, 0);
+            this.daysInMonth = lastDay.getDate();
+            this.startDayOfWeek = firstDay.getDay();
+        },
         
         toggleDate(date) {
             const index = this.selectedDates.indexOf(date);
@@ -48,28 +61,53 @@
                 this.selectedDates.push(date);
             }
             this.selectedDates.sort();
-            $wire.set('{{ $statePath }}', this.selectedDates);
-            this.updateRangeDisplay();
+            
+            // ✅ FIX: Debounce sync - tunggu 300ms sebelum sync ke server
+            clearTimeout(this.syncTimeout);
+            this.syncTimeout = setTimeout(() => {
+                $wire.set('{{ $statePath }}', this.selectedDates);
+                this.updateRangeDisplay();
+            }, 300);
         },
         
         isSelected(date) {
             return this.selectedDates.includes(date);
         },
         
+        // ✅ FIX 2: Ganti bulan tanpa reload halaman
         changeMonth(delta) {
-            let newMonth = this.currentMonth + delta;
-            let newYear = this.currentYear;
+            this.currentMonth += delta;
             
-            if (newMonth > 12) {
-                newMonth = 1;
-                newYear++;
-            } else if (newMonth < 1) {
-                newMonth = 12;
-                newYear--;
+            if (this.currentMonth > 12) {
+                this.currentMonth = 1;
+                this.currentYear++;
+            } else if (this.currentMonth < 1) {
+                this.currentMonth = 12;
+                this.currentYear--;
             }
             
-            // Reload dengan parameter bulan baru
-            window.location.href = '{{ request()->url() }}?calendar_month=' + newMonth + '&calendar_year=' + newYear;
+            this.calculateCalendar();
+        },
+        
+        // ✅ FIX 3: Helper untuk cek tanggal masa lalu
+        isPastDate(day) {
+            const checkDate = new Date(this.currentYear, this.currentMonth - 1, day);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return checkDate < today;
+        },
+        
+        // ✅ FIX 4: Helper untuk cek weekend
+        isWeekend(day) {
+            const checkDate = new Date(this.currentYear, this.currentMonth - 1, day);
+            const dayOfWeek = checkDate.getDay();
+            return dayOfWeek === 0 || dayOfWeek === 6;
+        },
+        
+        getDateString(day) {
+            const month = String(this.currentMonth).padStart(2, '0');
+            const dayStr = String(day).padStart(2, '0');
+            return `${this.currentYear}-${month}-${dayStr}`;
         },
         
         updateRangeDisplay() {
@@ -78,31 +116,70 @@
                 const first = sorted[0];
                 const last = sorted[sorted.length - 1];
                 
-                // Update hidden fields untuk kompatibilitas
-                $wire.set('data.tanggal_mulai', first);
-                $wire.set('data.tanggal_akhir', last);
+                // Batch update untuk hidden fields
+                clearTimeout(this.syncTimeout);
+                this.syncTimeout = setTimeout(() => {
+                    $wire.set('data.tanggal_mulai', first);
+                    $wire.set('data.tanggal_akhir', last);
+                }, 500);
             }
-        }
-    }" x-init="updateRangeDisplay()" class="space-y-4">
+        },
         
-        <!-- Header Calendar -->
+        // ✅ BONUS: Quick select shortcuts
+        selectWeekdays() {
+            this.selectedDates = [];
+            for (let day = 1; day <= this.daysInMonth; day++) {
+                if (!this.isWeekend(day)) {
+                    this.selectedDates.push(this.getDateString(day));
+                }
+            }
+            this.selectedDates.sort();
+            $wire.set('{{ $statePath }}', this.selectedDates);
+            this.updateRangeDisplay();
+        },
+        
+        clearSelection() {
+            this.selectedDates = [];
+            $wire.set('{{ $statePath }}', []);
+            this.updateRangeDisplay();
+        }
+    }" class="space-y-4">
+        
+        <!-- Header Calendar dengan Quick Actions -->
         <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
             <button 
                 type="button"
                 @click="changeMonth(-1)"
-                class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+                class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
             >
                 ← Bulan Lalu
             </button>
             
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                {{ $firstDay->isoFormat('MMMM Y') }}
-            </h3>
+            <div class="text-center">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white" x-text="monthNames[currentMonth - 1] + ' ' + currentYear"></h3>
+                <div class="flex gap-2 mt-2">
+                    <button 
+                        type="button"
+                        @click="selectWeekdays()"
+                        class="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800"
+                        title="Pilih semua hari kerja (Sen-Jum) di bulan ini"
+                    >
+                        Pilih Hari Kerja
+                    </button>
+                    <button 
+                        type="button"
+                        @click="clearSelection()"
+                        class="px-2 py-1 text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800"
+                    >
+                        Reset
+                    </button>
+                </div>
+            </div>
             
             <button 
                 type="button"
                 @click="changeMonth(1)"
-                class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+                class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
             >
                 Bulan Depan →
             </button>
@@ -110,7 +187,7 @@
 
         <!-- Day Names -->
         <div class="grid grid-cols-7 gap-1 text-center font-medium text-sm text-gray-600 dark:text-gray-400">
-            <div class="p-2">Min</div>
+            <div class="p-2 text-red-600 dark:text-red-400">Min</div>
             <div class="p-2">Sen</div>
             <div class="p-2">Sel</div>
             <div class="p-2">Rab</div>
@@ -121,51 +198,47 @@
 
         <!-- Calendar Grid -->
         <div class="grid grid-cols-7 gap-1">
-            @php
-                // Empty cells before first day
-                for ($i = 0; $i < $startDayOfWeek; $i++) {
-                    echo '<div class="p-2"></div>';
-                }
-                
-                // Days of month
-                for ($day = 1; $day <= $daysInMonth; $day++) {
-                    $date = Carbon::create($currentYear, $currentMonth, $day)->format('Y-m-d');
-                    $dayOfWeek = Carbon::create($currentYear, $currentMonth, $day)->dayOfWeek;
-                    $isWeekend = in_array($dayOfWeek, [0, 6]); // Minggu atau Sabtu
-                    $isPast = Carbon::create($currentYear, $currentMonth, $day)->lt(now()->startOfDay());
-            @endphp
-                    <div>
-                        <label 
-                            class="flex items-center justify-center p-2 cursor-pointer rounded-lg border-2 transition-all
-                                {{ $isWeekend ? 'bg-red-50 dark:bg-red-900/20' : 'bg-white dark:bg-gray-800' }}
-                                {{ $isPast ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20' }}
-                                border-gray-200 dark:border-gray-700"
-                            :class="{
-                                'border-primary-600 bg-primary-100 dark:bg-primary-900/40 font-bold': isSelected('{{ $date }}')
-                            }"
+            <!-- Empty cells before first day -->
+            <template x-for="i in startDayOfWeek" :key="'empty-' + i">
+                <div class="p-2"></div>
+            </template>
+            
+            <!-- Days -->
+            <template x-for="day in daysInMonth" :key="day">
+                <div>
+                    <label 
+                        class="flex items-center justify-center p-2 cursor-pointer rounded-lg border-2 transition-all"
+                        :class="{
+                            'bg-red-50 dark:bg-red-900/20': isWeekend(day),
+                            'bg-white dark:bg-gray-800': !isWeekend(day),
+                            'opacity-40': isPastDate(day),
+                            'hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20': !isPastDate(day),
+                            'border-primary-600 bg-primary-100 dark:bg-primary-900/40 font-bold': isSelected(getDateString(day)),
+                            'border-gray-200 dark:border-gray-700': !isSelected(getDateString(day))
+                        }"
+                    >
+                        <input 
+                            type="checkbox"
+                            class="sr-only"
+                            :value="getDateString(day)"
+                            @click="toggleDate(getDateString(day))"
+                            :checked="isSelected(getDateString(day))"
                         >
-                            <input 
-                                type="checkbox"
-                                class="sr-only"
-                                value="{{ $date }}"
-                                @click="toggleDate('{{ $date }}')"
-                                :checked="isSelected('{{ $date }}')"
-                                {{ $isPast ? 'disabled' : '' }}
-                            >
-                            <span 
-                                class="text-sm {{ $isWeekend ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100' }}"
-                                :class="{ 'font-bold text-primary-700 dark:text-primary-300': isSelected('{{ $date }}') }"
-                            >
-                                {{ $day }}
-                            </span>
-                        </label>
-                    </div>
-            @php
-                }
-            @endphp
+                        <span 
+                            class="text-sm"
+                            :class="{
+                                'text-red-600 dark:text-red-400': isWeekend(day),
+                                'text-gray-900 dark:text-gray-100': !isWeekend(day),
+                                'font-bold text-primary-700 dark:text-primary-300': isSelected(getDateString(day))
+                            }"
+                            x-text="day"
+                        ></span>
+                    </label>
+                </div>
+            </template>
         </div>
 
-        <!-- Summary -->
+        <!-- Summary dengan Info Lebih Detail -->
         <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-blue-900 dark:text-blue-100">
@@ -182,12 +255,19 @@
                     : selectedDates.join(', ')">
                 </span>
             </div>
+            
+            <!-- Warning untuk backdate -->
+            <div x-show="selectedDates.some(date => new Date(date) < new Date().setHours(0,0,0,0))" 
+                 class="mt-2 p-2 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded text-xs text-yellow-800 dark:text-yellow-200">
+                ⚠️ Anda memilih tanggal backdate. Pastikan sudah ada persetujuan atasan.
+            </div>
         </div>
 
-        <!-- Info -->
+        <!-- Info & Legends -->
         <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-            <p>✅ Klik tanggal untuk memilih/membatalkan cuti</p>
-            <p>📅 Anda bisa memilih tanggal tidak berurutan (misalnya: 1,2,3 lalu 7,8,9)</p>
+            <p>✅ <strong>Klik tanggal</strong> untuk memilih/membatalkan cuti</p>
+            <p>📅 Anda bisa memilih tanggal tidak berurutan</p>
+            <p>⏮️ <strong>Backdate diizinkan</strong> - tanggal masa lalu bisa dipilih</p>
         </div>
     </div>
 </x-dynamic-component>

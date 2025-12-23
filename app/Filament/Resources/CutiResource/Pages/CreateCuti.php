@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\CutiResource\Pages;
 
+use Carbon\Carbon;
 use App\Models\User;
 use App\Models\Employee;
 use App\Models\UnitKerja;
@@ -43,18 +44,14 @@ class CreateCuti extends CreateRecord
         $user = Auth::user();
         
         // 1. Logika pengisian ID Pegawai (Wajib untuk non-admin)
-        if ($user->role !== 'admin') {
+        if ($user->role === 'pegawai') {
+            $hasBackdate = collect($data['tanggal_cuti_array'])
+                ->some(fn($date) => Carbon::parse($date)->lt(now()->startOfDay()));
             
-            // Cari ID pegawai berdasarkan user_id yang login
-            $employee = Employee::where('user_id', $user->id)->first();
-
-            if ($employee) {
-                $data['employee_id'] = $employee->id;
-            } else {
-                // Jika tidak ada employee terkait, tampilkan error dan hentikan proses
+            if ($hasBackdate) {
                 Notification::make()
-                    ->title('Error: Profil Pegawai Tidak Ditemukan')
-                    ->body("Akun Anda ({$user->name}) belum terhubung dengan data pegawai. Silakan hubungi admin untuk menautkan akun Anda.")
+                    ->title('Backdate Tidak Diizinkan')
+                    ->body('Pegawai tidak bisa mengajukan cuti backdate. Hubungi admin.')
                     ->danger()
                     ->persistent()
                     ->send();

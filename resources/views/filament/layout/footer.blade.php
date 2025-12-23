@@ -81,11 +81,18 @@
 
     <ul class="tvri-menu tvri-text">
         <li>
-            <span style="font-weight: 500;">Sistem E-Cuti v1.0</span>
+            <span style="font-weight: 500;">Didesain & Dikembangkan oleh : </span>
         </li>
-        <li style="opacity: 0.3;">|</li>
         <li>
-            <a href="#" class="tvri-link">Bantuan</a>
+            <a href="https://www.instagram.com/leoarethere/" target="_blank" class="underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                Leonardo Putra Susanto
+            </a>
+        </li>
+        serta
+        <li>
+            <a  href="https://www.instagram.com/destywahyu01/" target="_blank" class="underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                Desty Wahyu Anjani
+            </a>
         </li>
     </ul>
 </footer>
