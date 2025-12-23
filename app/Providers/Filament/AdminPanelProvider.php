@@ -33,7 +33,7 @@ class AdminPanelProvider extends PanelProvider
             ->login()
 
             // === KONFIGURASI LOGO & NAMA ===
-            ->brandName('E-Cuti TVRI Yogyakarta') // Teks Alt jika gambar gagal muat
+            ->brandName('E-Cuti TVRI Yogyakarta')
             ->brandLogo(fn () => new HtmlString('
                 <div class="flex items-center gap-x-1">
                     <img 
@@ -50,13 +50,15 @@ class AdminPanelProvider extends PanelProvider
             ->favicon(asset('img/favicon.png'))
             // ===============================
             
+            // ✅ LIGHT MODE DEFAULT (User masih bisa toggle)
+            ->darkMode(false)
+            
             ->colors([
-                'primary' => Color::Indigo,
+                'primary' => Color::Blue,
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
-                // Pages\Dashboard::class,
                 \App\Filament\Pages\Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
@@ -88,48 +90,68 @@ class AdminPanelProvider extends PanelProvider
             fn (): string => Blade::render("@include('filament.layout.footer')")
         );
 
-        // 2. === MODIFIKASI TAMPILAN LOGIN ===
+        // 2. ✅ TAMBAHAN BARU: Force Light Mode Default
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::HEAD_END,
+            fn (): string => '
+                <script>
+                    // Set light mode sebagai default jika belum ada preferensi
+                    (function() {
+                        const currentTheme = localStorage.getItem("theme");
+                        
+                        // Jika belum pernah set, default ke light
+                        if (!currentTheme || currentTheme === "dark") {
+                            localStorage.setItem("theme", "light");
+                            document.documentElement.classList.remove("dark");
+                        }
+                        
+                        // Cegah flash dark mode saat load
+                        if (localStorage.getItem("theme") === "light") {
+                            document.documentElement.classList.remove("dark");
+                        }
+                    })();
+                </script>
+            '
+        );
+
+        // 3. Modifikasi Tampilan Login (Yang sudah ada)
         FilamentView::registerRenderHook(
             PanelsRenderHook::HEAD_END,
             fn (): string => '
                 <style>
                     /* Hanya terapkan di halaman login */
                     .fi-body.fi-panel-admin.fi-page-login {
-                        /* Ganti URL di bawah dengan gambar background Anda */
                         background-image: url("'. asset('img/loginbanner.jpeg') .'"); 
                         background-size: cover;
                         background-position: center;
                         background-repeat: no-repeat;
                     }
 
-                    /* Membuat efek overlay gelap agar tulisan terbaca (Opsional) */
                     .fi-body.fi-panel-admin.fi-page-login::before {
                         content: "";
                         position: absolute;
                         top: 0; right: 0; bottom: 0; left: 0;
-                        background: rgba(0, 0, 0, 0.5); /* Hitam transparan 50% */
+                        background: rgba(0, 0, 0, 0.5);
                         z-index: -1;
                     }
 
-                    /* Membuat Kotak Login jadi Putih Transparan (Glassmorphism) */
                     .fi-page-login .fi-simple-main-ctn {
-                        background-color: rgba(255, 255, 255, 0.9) !important; /* Putih 90% */
-                        backdrop-filter: blur(10px); /* Efek blur di belakang kotak */
+                        background-color: rgba(255, 255, 255, 0.9) !important;
+                        backdrop-filter: blur(10px);
                         border-radius: 1rem;
                         padding: 2rem;
                         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
                     }
 
-                    /* Penyesuaian Dark Mode (Jika aktif) */
                     .dark .fi-page-login .fi-simple-main-ctn {
-                        background-color: rgba(17, 24, 39, 0.9) !important; /* Hitam 90% */
+                        background-color: rgba(17, 24, 39, 0.9) !important;
                         border: 1px solid rgba(255,255,255,0.1);
                     }
                 </style>
             '
         );
 
-        // 3. Menambahkan Teks Copyright di Bawah Tombol Login
+        // 4. Copyright di Login Form
         FilamentView::registerRenderHook(
             PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
             fn (): string => '
