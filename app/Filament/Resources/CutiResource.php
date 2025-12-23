@@ -75,7 +75,7 @@ class CutiResource extends Resource
                     ->label('Pilih Tanggal Cuti')
                     ->view('forms.components.calendar-checkbox')
                     ->required()
-                    ->helperText('Klik tanggal-tanggal yang Anda inginkan untuk cuti. Anda bisa memilih tanggal tidak berurutan.')
+                    ->helperText('*Klik tanggal-tanggal yang Anda inginkan untuk cuti. Anda bisa memilih tanggal tidak berurutan.')
                     ->columnSpanFull(),
 
                 // ✅ HIDDEN FIELDS: Untuk kompatibilitas dengan sistem lama
@@ -123,43 +123,78 @@ class CutiResource extends Resource
                 TextColumn::make('jenis_cuti')
                     ->label('Jenis Cuti')
                     ->searchable(),
-                
-                // ✅ UPDATE: Tampilkan tanggal dari array atau fallback ke range
-                TextColumn::make('tanggal_cuti')
+                    
+                TextColumn::make('tanggal_mulai') // ✅ Ganti dari 'tanggal_cuti' ke 'tanggal_mulai'
                     ->label('Tanggal Cuti')
+                    ->icon('heroicon-m-calendar-days') // Tambah ikon visual
+                    ->sortable()
                     ->formatStateUsing(function ($record) {
-                        // Jika menggunakan sistem baru (array)
+                        // --- LOGIKA TAMPILAN UTAMA (RANGE TANGGAL) ---
+                        
+                        // Ambil data tanggal dari array (sistem baru) atau kolom biasa (sistem lama)
                         if (!empty($record->tanggal_cuti_array) && is_array($record->tanggal_cuti_array)) {
                             $dates = collect($record->tanggal_cuti_array)->sort()->values();
-                            
-                            if ($dates->count() <= 3) {
-                                return $dates->map(fn($d) => \Carbon\Carbon::parse($d)->format('d/m'))->join(', ');
+                            $start = $dates->first();
+                            $end = $dates->last();
+                        } else {
+                            $start = $record->tanggal_mulai;
+                            $end = $record->tanggal_akhir;
+                        }
+
+                        if (!$start) return '-';
+
+                        $cStart = Carbon::parse($start);
+                        $cEnd = $end ? Carbon::parse($end) : $cStart;
+
+                        // Skenario 1: Cuti cuma 1 hari
+                        if ($cStart->isSameDay($cEnd)) {
+                            return $cStart->isoFormat('D MMM Y');
+                        }
+
+                        // Skenario 2: Range tanggal (Contoh: 10 - 12 Des 2025)
+                        // Jika tahun sama
+                        if ($cStart->isSameYear($cEnd)) {
+                            // Jika bulan sama (10 - 12 Des 2025)
+                            if ($cStart->isSameMonth($cEnd)) {
+                                return $cStart->format('d') . ' - ' . $cEnd->isoFormat('D MMM Y'); 
                             }
+                            // Jika bulan beda (30 Nov - 02 Des 2025)
+                            return $cStart->isoFormat('D MMM') . ' - ' . $cEnd->isoFormat('D MMM Y');
+                        }
+                        
+                        // Jika beda tahun
+                        return $cStart->isoFormat('D MMM Y') . ' - ' . $cEnd->isoFormat('D MMM Y');
+                    })
+                    ->description(function ($record) {
+                        // --- LOGIKA SUB-TEXT (DETAIL KECIL DI BAWAH TANGGAL) ---
+                        
+                        if (!empty($record->tanggal_cuti_array) && is_array($record->tanggal_cuti_array)) {
+                            $count = count($record->tanggal_cuti_array);
                             
-                            $first = \Carbon\Carbon::parse($dates->first())->format('d/m/Y');
-                            $last = \Carbon\Carbon::parse($dates->last())->format('d/m/Y');
-                            return "$first ... $last";
+                            // Jika tanggalnya acak/lompat-lompat, beri info "Acak"
+                            // Kita cek sederhana dengan membandingkan selisih hari vs jumlah item
+                            $first = Carbon::parse(min($record->tanggal_cuti_array));
+                            $last = Carbon::parse(max($record->tanggal_cuti_array));
+                            $diffDays = $first->diffInDays($last) + 1;
+                            
+                            $status = ($diffDays != $count) ? '(Acak)' : '';
+
+                            return "Total: {$count} Hari {$status}";
                         }
                         
-                        // Fallback ke sistem lama (range)
-                        if ($record->tanggal_mulai && $record->tanggal_akhir) {
-                            $mulai = \Carbon\Carbon::parse($record->tanggal_mulai)->format('d/m');
-                            $akhir = \Carbon\Carbon::parse($record->tanggal_akhir)->format('d/m/Y');
-                            return "$mulai - $akhir";
-                        }
-                        
-                        return '-';
+                        return null; 
                     })
                     ->tooltip(function ($record) {
+                        // --- TOOLTIP SAAT HOVER (Tampilkan semua tanggal lengkap) ---
                         if (!empty($record->tanggal_cuti_array) && is_array($record->tanggal_cuti_array)) {
                             return collect($record->tanggal_cuti_array)
                                 ->sort()
-                                ->map(fn($d) => \Carbon\Carbon::parse($d)->format('d M Y'))
-                                ->join(', ');
+                                ->map(fn($d) => Carbon::parse($d)->isoFormat('dddd, D MMMM Y'))
+                                ->join("\n");
                         }
                         return null;
                     })
-                    ->sortable(),
+                    ->wrap(),
 
                 // ✅ UPDATE: Hitung lama cuti dari array
                 TextColumn::make('lama_cuti')
@@ -176,7 +211,12 @@ class CutiResource extends Resource
                         'warning' => fn ($state) => $state !== 'Disetujui' && $state !== 'Ditolak',
                         'success' => 'Disetujui',
                         'danger' => fn ($state) => str_contains($state, 'Ditolak'),
-                ]),
+                    ])
+                    ->icons([
+                        'heroicon-m-clock' => fn ($state) => str_contains($state, 'Menunggu'),
+                        'heroicon-m-check-circle' => 'Disetujui',
+                        'heroicon-m-x-circle' => fn ($state) => str_contains($state, 'Ditolak'),
+                    ]),
             ])
             ->actions([
             // ✅ FITUR BARU: Lihat Detail Pengajuan
@@ -189,6 +229,19 @@ class CutiResource extends Resource
                 ->modalContent(fn ($record) => view('filament.resources.cuti.view-detail', ['record' => $record]))
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Tutup'),
+                
+            // PERBAIKAN: Edit hanya boleh jika status masih 'Menunggu Persetujuan Atasan Langsung'
+            Tables\Actions\EditAction::make()
+                ->visible(fn (Cuti $record) => 
+                    $record->status_global === 'Menunggu Persetujuan Atasan Langsung' && 
+                    Auth::id() === $record->employee->user_id // Hanya pemilik yg bisa edit (opsional)
+                ),
+
+            // PERBAIKAN: Hapus hanya boleh jika status masih 'Menunggu Persetujuan Atasan Langsung'
+            Tables\Actions\DeleteAction::make()
+                ->visible(fn (Cuti $record) => 
+                    $record->status_global === 'Menunggu Persetujuan Atasan Langsung'
+                ),
 
             // Action yang sudah ada sebelumnya
             Action::make('exportFormPdf')
@@ -200,7 +253,7 @@ class CutiResource extends Resource
                         app(FormCutiGenerator::class)->generate($record);
                     }, 200, [
                         'Content-Type' => 'application/pdf',
-                        'Content-Disposition' => 'inline; filename="form_cuti.pdf"',
+                        'Content-Disposition' => 'inline; filename="formulir_cuti.pdf"',
                     ]);
                 }),
             ])
@@ -215,7 +268,7 @@ class CutiResource extends Resource
                             app(FormCutiGenerator::class)->generate($record);
                         }, 200, [
                             'Content-Type' => 'application/pdf',
-                            'Content-Disposition' => 'inline; filename="form_cuti.pdf"',
+                            'Content-Disposition' => 'inline; filename="formulir_cuti.pdf"',
                         ]);
                     }),
 

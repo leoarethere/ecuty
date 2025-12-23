@@ -133,9 +133,21 @@ class AdminPanelProvider extends PanelProvider
         FilamentView::registerRenderHook(
             PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
             fn (): string => '
-                <div class="text-center mt-4 text-xs text-gray-500 dark:text-gray-400">
-                    Copyright '.date('Y').' TVRI Stasiun D.I. Yogyakarta<br>
-                    Sistem E-Cuti Terintegrasi
+                <div class="text-center text-gray-500 dark:text-gray-400 mt-4">
+                    <p class="text-xs text-gray-400 dark:text-gray-500">
+                        Copyright ' . date('Y') . ' TVRI Stasiun D.I. Yogyakarta | All rights reserved.
+                    </p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        <span>&lt;/&gt;</span>
+                        Dikembangkan oleh :
+                        <a href="https://www.instagram.com/leoarethere/" target="_blank" class="underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                            Leonardo Putra Susanto
+                        </a>
+                        &amp;
+                        <a href="https://www.instagram.com/destywahyu01/" target="_blank" class="underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                            Desty Wahyu Anjani
+                        </a>
+                    </p>
                 </div>
             '
         );

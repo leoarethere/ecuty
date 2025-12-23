@@ -66,8 +66,25 @@ class CreateCuti extends CreateRecord
         // ✅ 2. UPDATE: Auto-fill tanggal_mulai dan tanggal_akhir dari array
         if (!empty($data['tanggal_cuti_array']) && is_array($data['tanggal_cuti_array'])) {
             $dates = collect($data['tanggal_cuti_array'])->sort()->values();
-            $data['tanggal_mulai'] = $dates->first();
-            $data['tanggal_akhir'] = $dates->last();
+            $lamaCuti = $dates->count(); // Hitung jumlah hari
+            
+        // === TAMBAHAN VALIDASI SALDO CUTI ===
+        if ($data['jenis_cuti'] === 'Cuti Tahunan') {
+            // Ambil data pegawai terbaru
+            $employee = Employee::find($data['employee_id']);
+            
+            if ($employee->sisa_cuti_tahunan < $lamaCuti) {
+                Notification::make()
+                    ->title('Sisa Cuti Tidak Cukup')
+                    ->body("Anda mengajukan {$lamaCuti} hari, namun sisa cuti Anda hanya {$employee->sisa_cuti_tahunan} hari.")
+                    ->danger()
+                    ->persistent()
+                    ->send();
+                
+                $this->halt(); // Batalkan penyimpanan
+            }
+        }
+            
         } else {
             // Validasi: Harus ada tanggal yang dipilih
             Notification::make()

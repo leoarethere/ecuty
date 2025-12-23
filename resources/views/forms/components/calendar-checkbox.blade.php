@@ -3,7 +3,18 @@
     
     // State management
     $statePath = $getStatePath();
-    $selectedDates = is_array($getState()) ? $getState() : [];
+    
+    // ✅ PERBAIKAN: Handle data existing saat edit
+    $selectedDates = [];
+    $rawState = $getState();
+    
+    if (is_array($rawState)) {
+        $selectedDates = $rawState;
+    } elseif (is_string($rawState)) {
+        // Jika data tersimpan sebagai JSON string
+        $decoded = json_decode($rawState, true);
+        $selectedDates = is_array($decoded) ? $decoded : [];
+    }
     
     // Get current month/year or use defaults
     $currentMonth = request()->get('calendar_month', now()->month);
@@ -177,7 +188,6 @@
         <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
             <p>✅ Klik tanggal untuk memilih/membatalkan cuti</p>
             <p>📅 Anda bisa memilih tanggal tidak berurutan (misalnya: 1,2,3 lalu 7,8,9)</p>
-            <p>🔴 Akhir pekan ditandai dengan warna merah</p>
         </div>
     </div>
 </x-dynamic-component>

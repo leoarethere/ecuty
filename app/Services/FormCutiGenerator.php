@@ -59,16 +59,22 @@ class FormCutiGenerator extends TCPDF
         $this->Output($fileName, 'I'); 
     }
 
-    /**
+/**
      * Menghitung data dinamis (Masa Kerja & Lama Cuti)
      */
     private function calculateData()
     {
-        // 1. Hitung masa kerja
+        // 1. Hitung masa kerja (PERBAIKAN: Format X Tahun Y Bulan)
         if ($this->cuti->employee->tanggal_bergabung) {
-            $tanggalBergabung = Carbon::parse($this->cuti->employee->tanggal_bergabung);
-            $years = $tanggalBergabung->diffInYears(now());
-            $months = $tanggalBergabung->copy()->addYears($years)->diffInMonths(now());
+            $joinDate = Carbon::parse($this->cuti->employee->tanggal_bergabung);
+            $now = Carbon::now();
+            
+            // Menggunakan method diff() untuk mendapatkan selisih presisi (integers)
+            $diff = $joinDate->diff($now); 
+            
+            // Ambil tahun dan bulan dari hasil diff
+            $years = $diff->y;  // Contoh: 5
+            $months = $diff->m; // Contoh: 6
             
             if ($years > 0) {
                 $this->masaKerja = $years . ' Tahun' . ($months > 0 ? ' ' . $months . ' Bulan' : '');
@@ -79,9 +85,7 @@ class FormCutiGenerator extends TCPDF
             $this->masaKerja = '-';
         }
             
-        // 2. LOGIKA BARU: Hitung Lama Cuti
-        // Prioritaskan kolom 'lama_cuti' dari database agar akurat dengan jumlah hari yang diceklis.
-        // Jika null (data lama), baru hitung manual dari selisih tanggal.
+        // 2. Hitung Lama Cuti (Sama seperti sebelumnya)
         if (isset($this->cuti->lama_cuti) && $this->cuti->lama_cuti > 0) {
             $this->lamaCuti = $this->cuti->lama_cuti;
         } else {
@@ -95,11 +99,27 @@ class FormCutiGenerator extends TCPDF
      */
     private function drawHeader()
     {
-        $this->SetFont('helvetica', 'B', 14);
+        // === 1. TAMBAHKAN LOGIKA GAMBAR DISINI ===
+        // Gunakan public_path() untuk menunjuk ke folder public/img/logodark.png
+        $logoPath = public_path('img/logodark.png'); 
+
+        if (file_exists($logoPath)) {
+            // Ubah parameter kedua (Y) dari 15 menjadi 10 agar naik ke atas
+            // Format: Image(file, x, y, w, h, type, link, align, resize, dpi, align, imagemask, imagedata, border, fitbox, hidden, fitonpage)
+            
+            // X = 20 (Tetap di margin kiri)
+            // Y = 10 (Naik 5mm dari sebelumnya)
+            // W = 25 (Lebar gambar)
+            $this->Image($logoPath, 20, 10, 25, '', 'PNG');
+        }
+        // =========================================
         $this->SetXY(20, 20);
-        $this->Cell(0, 8, 'LEMBAGA PENYIARAN PUBLIK TELEVISI REPUBLIK INDONESIA', 0, 1, 'C');
         $this->SetFont('helvetica', 'B', 14);
-        $this->Cell(0, 8, 'STASIUN YOGYAKARTA', 0, 1, 'C');
+        $this->Cell(0, 8, 'LEMBAGA PENYIARAN PUBLIK', 0, 1, 'C');
+        $this->SetFont('helvetica', 'B', 14);
+        $this->Cell(0, 8, 'TELEVISI REPUBLIK INDONESIA STASIUN YOGYAKARTA', 0, 1, 'C');
+        // $this->SetFont('helvetica', 'B', 14);
+        // $this->Cell(0, 8, 'STASIUN YOGYAKARTA', 0, 1, 'C');
         
         $this->SetFont('helvetica', '', 9);
         $this->Cell(0, 5, 'Jl. Magelang Km. 4,5 Daerah Istimewa Yogyakarta 55284 | Telp: (0274) 514909 | Email: yogyakarta@tvri.go.id', 0, 1, 'C');
@@ -178,43 +198,41 @@ class FormCutiGenerator extends TCPDF
         $tanggapanAtasan = $this->cuti->tanggapan_atasan_langsung;
 
         // ========================================
-        // ✅ FORMAT TANGGAL CUTI (BARU!)
+        // ✅ FORMAT TANGGAL CUTI (DI-GROUP PER BULAN)
         // ========================================
         $tanggalCutiHtml = '-';
-        $periodeCutiHtml = '-';
-
+            
         if (!empty($this->cuti->tanggal_cuti_array) && is_array($this->cuti->tanggal_cuti_array)) {
-            // Sistem BARU: Array tanggal
-            $dates = collect($this->cuti->tanggal_cuti_array)->sort()->values();
-            
-            // Format detail untuk tabel
-            if ($dates->count() <= 10) {
-                // Jika sedikit, tampilkan semua
-                $tanggalCutiHtml = $dates->map(function($d) {
-                    return \Carbon\Carbon::parse($d)->isoFormat('D MMM Y');
-                })->join(', ');
-            } else {
-                // Jika banyak, grup per bulan
-                $grouped = $dates->groupBy(function($d) {
-                    return \Carbon\Carbon::parse($d)->format('Y-m');
-                });
+            // 1. Urutkan tanggal terlebih dahulu
+            $dates = collect($this->cuti->tanggal_cuti_array)
+                ->map(fn($d) => \Carbon\Carbon::parse($d))
+                ->sort();
+
+            // 2. Kelompokkan berdasarkan Tahun dan Bulan (Format Y-m)
+            $grouped = $dates->groupBy(fn($d) => $d->format('Y-m'));
+
+            // 3. Format output: "09, 10, 11 Desember 2025"
+            $tanggalCutiHtml = $grouped->map(function ($datesInMonth) {
+                // Ambil nama Bulan dan Tahun dari data pertama di grup ini
+                $monthYear = $datesInMonth->first()->isoFormat('MMMM Y');
                 
-                $tanggalCutiHtml = $grouped->map(function($monthDates, $month) {
-                    $monthName = \Carbon\Carbon::parse($monthDates->first())->isoFormat('MMMM Y');
-                    $days = $monthDates->map(fn($d) => \Carbon\Carbon::parse($d)->day)->join(', ');
-                    return "Tanggal $days $monthName";
-                })->join('<br>');
-            }
-            
-            // Periode untuk ringkasan
-            $first = \Carbon\Carbon::parse($dates->first())->isoFormat('D MMMM Y');
-            $last = \Carbon\Carbon::parse($dates->last())->isoFormat('D MMMM Y');
-            $periodeCutiHtml = "<strong>$first</strong> s/d <strong>$last</strong><br><em style='font-size: 9pt; color: #6b7280;'>(Total: {$dates->count()} hari yang dipilih)</em>";
-            
+                // Gabungkan hanya tanggalnya saja (contoh: 09, 10, 11)
+                $days = $datesInMonth->map(fn($d) => $d->format('d'))->join(', ');
+                
+                // Gabungkan jadi satu string
+                return "$days $monthYear"; 
+            })->join('<br>'); // Jika lintas bulan, pisahkan dengan baris baru
+
         } elseif ($this->cuti->tanggal_mulai && $this->cuti->tanggal_akhir) {
-            // Sistem LAMA: Range tanggal
-            $periodeCutiHtml = '<strong>'.Carbon::parse($this->cuti->tanggal_mulai)->isoFormat('D MMMM Y').'</strong> s/d <strong>'.Carbon::parse($this->cuti->tanggal_akhir)->isoFormat('D MMMM Y').'</strong>';
-            $tanggalCutiHtml = $periodeCutiHtml;
+            // Fallback untuk data lama (sistem range)
+            $start = \Carbon\Carbon::parse($this->cuti->tanggal_mulai);
+            $end = \Carbon\Carbon::parse($this->cuti->tanggal_akhir);
+            
+            if ($start->isSameMonth($end)) {
+                $tanggalCutiHtml = $start->format('d') . ' - ' . $end->format('d') . ' ' . $end->isoFormat('MMMM Y');
+            } else {
+                $tanggalCutiHtml = $start->isoFormat('d MMMM') . ' s/d ' . $end->isoFormat('d MMMM Y');
+            }
         }
 
         // Lama cuti (gunakan helper dari model)
@@ -267,8 +285,7 @@ class FormCutiGenerator extends TCPDF
             <tr class="row-separator"><td class="label-cell">Jenis Cuti</td><td class="value-cell"><strong>'.e($jenisCuti).'</strong></td></tr>
             <tr class="row-separator"><td class="label-cell">Alasan Cuti</td><td class="value-cell">'.e($this->cuti->alasan).'</td></tr>
             
-            <tr class="row-separator"><td class="label-cell">Periode Cuti</td><td class="value-cell">'.$periodeCutiHtml.'</td></tr>
-            <tr class="row-separator"><td class="label-cell">Detail Tanggal Cuti</td><td class="value-cell" style="font-size: 9pt;">'.$tanggalCutiHtml.'</td></tr>
+            <tr class="row-separator"><td class="label-cell">Detail Tanggal Cuti</td><td class="value-cell" style="font-size: 10pt;"><strong>'.$tanggalCutiHtml.'</strong></td></tr>
             <tr class="row-separator"><td class="label-cell">Total Hari Cuti</td><td class="value-cell"><strong style="color: #1e40af;">'.e($lamaCutiHtml).'</strong></td></tr>
             
             <tr><td class="label-cell">Alamat Selama Cuti</td><td class="value-cell">'.nl2br(e($this->cuti->alamat_selama_cuti)).'</td></tr>
@@ -332,7 +349,7 @@ class FormCutiGenerator extends TCPDF
         </div>
 
         <div class="important-note" style="text-align: center; margin-top: 25px;">
-            <strong>Catatan Penting:</strong> Dokumen ini merupakan salinan resmi yang dicetak dari Sistem E-Cuti TVRI Yogyakarta. Dicetak secara elektronik pada '.Carbon::now()->isoFormat('dddd, D MMMM Y [pukul] HH:mm').' WIB
+            <strong>Catatan:</strong> Dicetak secara elektronik pada '.Carbon::now()->isoFormat('dddd, D MMMM Y [pukul] HH:mm').' WIB
         </div>
         ';
 

@@ -8,9 +8,7 @@ use Illuminate\Support\Collection;
 
 /**
  * Class RekapCutiGenerator
- *
- * Menggunakan TCPDF untuk membuat file PDF rekap (tabel)
- * yang dinamis dan rapi.
+ * Update: Menggunakan font Helvetica agar seragam dengan Form Cuti
  */
 class RekapCutiGenerator extends TCPDF
 {
@@ -25,9 +23,9 @@ class RekapCutiGenerator extends TCPDF
         $this->SetTitle('Rekap Pengajuan Cuti');
         $this->SetSubject('Rekap Data Cuti');
         
-        // Margin: Kiri, Atas, Kanan (10mm agar muat tabel lebar)
+        // Margin: Kiri, Atas, Kanan (10mm)
         $this->SetMargins(10, 15, 10);
-        $this->SetAutoPageBreak(true, 15); // Margin bawah 15mm
+        $this->SetAutoPageBreak(true, 15);
         
         $this->setPrintHeader(false);
         $this->setPrintFooter(true);
@@ -35,7 +33,9 @@ class RekapCutiGenerator extends TCPDF
         $this->AddPage('L', 'A4'); // Landscape
 
         // --- Mulai Menggambar ---
-        $this->SetFont('times', '', 11);
+        // GANTI FONT DISINI
+        $this->SetFont('helvetica', '', 10); 
+        
         $this->drawTitle();
         $this->drawTable(); 
 
@@ -49,13 +49,13 @@ class RekapCutiGenerator extends TCPDF
      */
     private function drawTitle()
     {
-        $this->SetFont('times', 'B', 14);
+        // GANTI FONT JUDUL
+        $this->SetFont('helvetica', 'B', 12);
         $this->Cell(0, 10, 'REKAP DATA PENGAJUAN CUTI', 0, 1, 'C');
-        $this->SetFont('times', 'B', 14);
-        $this->Cell(0, 8, 'LEMBAGA PENYIARAN PUBLIK TELEVISI REPUBLIK INDONESIA', 0, 1, 'C');
-        $this->SetFont('times', 'B', 14);
-        $this->Cell(0, 8, 'STASIUN YOGYAKARTA', 0, 1, 'C');
-        $this->SetFont('times', 'I', 12);
+        $this->SetFont('helvetica', 'B', 12);
+        $this->Cell(0, 8, 'LEMBAGA PENYIARAN PUBLIK TELEVISI REPUBLIK INDONESIA STASIUN YOGYAKARTA', 0, 1, 'C');
+        
+        $this->SetFont('helvetica', 'I', 10);
         $this->Cell(0, 7, 'Periode Cetak: ' . Carbon::now()->isoFormat('D MMMM Y'), 0, 1, 'C');
         $this->Ln(5);
     }
@@ -65,8 +65,9 @@ class RekapCutiGenerator extends TCPDF
      */
     private function drawTableHeader($header, $w)
     {
-        $this->SetFont('times', 'B', 9);
-        $this->SetFillColor(220, 220, 220); // Background abu-abu
+        // GANTI FONT HEADER TABEL
+        $this->SetFont('helvetica', 'B', 9);
+        $this->SetFillColor(220, 220, 220); // Abu-abu
         
         for ($i = 0; $i < count($header); $i++) {
             $this->Cell($w[$i], 8, $header[$i], 1, 0, 'C', true);
@@ -79,59 +80,41 @@ class RekapCutiGenerator extends TCPDF
      */
     private function drawTable()
     {
-        // === KONFIGURASI TABEL ===
-        $this->SetFont('times', '', 9);
+        // GANTI FONT ISI TABEL
+        $this->SetFont('helvetica', '', 9);
         $this->setCellPaddings(1.5, 1.5, 1.5, 1.5);
 
-        // Total Lebar A4 Landscape (297mm) - Margin (20mm) = 277mm
+        // Lebar kolom (sama seperti revisi terakhir)
         $w = [
             10, // No
-            35, // NIP
-            45, // Nama
-            35, // Unit
-            27, // Jenis
-            20, // Mulai
-            20, // Akhir
-            15, // Hari (Lama Cuti)
-            40, // Alasan
-            30  // Status
+            40, // NIP
+            40, // Nama
+            30, // Unit
+            25, // Jenis
+            55, // Detail Tanggal
+            12, // Hari
+            45, // Alasan
+            20  // Status
         ];
         
         $header = ['No', 'NIP', 'Nama Pegawai', 'Unit Kerja', 'Jenis Cuti', 
-                   'Mulai', 'Akhir', 'Hari', 'Alasan', 'Status'];
+                   'Detail Tanggal Cuti', 'Hari', 'Alasan', 'Status'];
 
-        // Cetak Header Pertama Kali
         $this->drawTableHeader($header, $w);
 
-        // === CETAK DATA ===
-        $this->SetFont('times', '', 9);
-        $this->SetFillColor(255, 255, 255); // Reset warna fill putih
+        // Reset Font untuk Data
+        $this->SetFont('helvetica', '', 9);
+        $this->SetFillColor(255, 255, 255);
         
         $no = 1;
         foreach ($this->records as $cuti) {
-            // Pastikan $cuti adalah object/model yang valid
-            if (!is_object($cuti)) {
-                continue;
-            }
+            if (!is_object($cuti)) continue;
             
-            // === LOGIKA BARU: HITUNG LAMA CUTI ===
-            // Gunakan kolom 'lama_cuti' dari database jika ada & valid.
-            // Jika tidak (data lama), hitung manual dari selisih tanggal.
-            $lamaCuti = 0;
-            if (isset($cuti->lama_cuti) && $cuti->lama_cuti > 0) {
-                $lamaCuti = $cuti->lama_cuti;
-            } elseif (isset($cuti->tanggal_mulai) && isset($cuti->tanggal_akhir)) {
-                $lamaCuti = Carbon::parse($cuti->tanggal_mulai)
-                            ->diffInDays(Carbon::parse($cuti->tanggal_akhir)) + 1;
-            }
-            // ======================================
-
-            // === PERBAIKAN: aman terhadap relasi / field yang null ===
+            // --- Logika Data (Sama seperti sebelumnya) ---
             $employee = isset($cuti->employee) ? $cuti->employee : null;
             $nip = $employee && isset($employee->NIP) ? $employee->NIP : '-';
             $namaPegawai = $employee && isset($employee->nama) ? $employee->nama : '-';
             
-            // Cek apakah ada relasi unitKerja atau langsung field unit_kerja
             if ($employee && isset($employee->unitKerja) && isset($employee->unitKerja->nama)) {
                 $unitKerjaNama = $employee->unitKerja->nama;
             } elseif ($employee && isset($employee->unit_kerja)) {
@@ -140,14 +123,39 @@ class RekapCutiGenerator extends TCPDF
                 $unitKerjaNama = '-';
             }
 
-            $tanggalMulai = isset($cuti->tanggal_mulai) && $cuti->tanggal_mulai 
-                ? Carbon::parse($cuti->tanggal_mulai)->format('d/m/Y') 
-                : '-';
-            $tanggalAkhir = isset($cuti->tanggal_akhir) && $cuti->tanggal_akhir 
-                ? Carbon::parse($cuti->tanggal_akhir)->format('d/m/Y') 
-                : '-';
+            $lamaCuti = 0;
+            if (isset($cuti->lama_cuti) && $cuti->lama_cuti > 0) {
+                $lamaCuti = $cuti->lama_cuti;
+            } elseif (isset($cuti->tanggal_mulai) && isset($cuti->tanggal_akhir)) {
+                $lamaCuti = Carbon::parse($cuti->tanggal_mulai)
+                            ->diffInDays(Carbon::parse($cuti->tanggal_akhir)) + 1;
+            }
 
-            // Siapkan data baris (pastikan semua elemen stringable)
+            $detailTanggal = '-';
+            if (!empty($cuti->tanggal_cuti_array) && is_array($cuti->tanggal_cuti_array)) {
+                $dates = collect($cuti->tanggal_cuti_array)
+                    ->map(fn($d) => Carbon::parse($d))
+                    ->sort();
+                
+                $grouped = $dates->groupBy(fn($d) => $d->format('Y-m'));
+
+                $detailTanggal = $grouped->map(function ($datesInMonth) {
+                    $monthYear = $datesInMonth->first()->isoFormat('MMMM Y');
+                    $days = $datesInMonth->map(fn($d) => $d->format('d'))->join(', ');
+                    return "$days $monthYear"; 
+                })->join("\n"); 
+
+            } elseif ($cuti->tanggal_mulai && $cuti->tanggal_akhir) {
+                $start = Carbon::parse($cuti->tanggal_mulai);
+                $end = Carbon::parse($cuti->tanggal_akhir);
+                
+                if ($start->isSameMonth($end)) {
+                     $detailTanggal = $start->format('d') . ' - ' . $end->format('d') . ' ' . $end->isoFormat('MMMM Y');
+                } else {
+                     $detailTanggal = $start->isoFormat('d MMM') . ' - ' . $end->isoFormat('d MMM Y');
+                }
+            }
+
             $jenisCuti = isset($cuti->jenis_cuti) ? $cuti->jenis_cuti : '-';
             $alasan = isset($cuti->alasan) ? $cuti->alasan : '-';
             $statusGlobal = isset($cuti->status_global) ? $cuti->status_global : '-';
@@ -158,78 +166,52 @@ class RekapCutiGenerator extends TCPDF
                 (string) $namaPegawai,
                 (string) $unitKerjaNama,
                 (string) $jenisCuti,
-                (string) $tanggalMulai,
-                (string) $tanggalAkhir,
-                (string) $lamaCuti, // <--- Ini sekarang sudah menggunakan logika baru
+                (string) $detailTanggal,
+                (string) $lamaCuti . ' Hari',
                 (string) $alasan,
                 (string) $statusGlobal
             ];
             
-            $align = ['C', 'L', 'L', 'L', 'L', 'C', 'C', 'C', 'L', 'L'];
+            $align = ['C', 'L', 'L', 'L', 'L', 'L', 'C', 'L', 'L'];
 
-            // 1. Hitung tinggi baris dinamis
             $maxHeight = $this->calculateRowHeight($data, $w);
 
-            // 2. LOGIKA PAGE BREAK PINTAR
             if ($this->GetY() + $maxHeight > ($this->getPageHeight() - $this->getBreakMargin())) {
                 $this->AddPage('L', 'A4');
-                $this->drawTableHeader($header, $w); // Gambar header lagi
-                $this->SetFont('times', '', 9);      // Kembalikan font data
+                $this->drawTableHeader($header, $w);
+                // Pastikan font di-reset setelah page break
+                $this->SetFont('helvetica', '', 9);
             }
 
-            // 3. Gambar sel dengan posisi X yang tepat
             $x = $this->GetX();
             $y = $this->GetY();
             
             for ($i = 0; $i < count($data); ++$i) {
                 $this->SetXY($x, $y);
-                
                 $this->MultiCell(
-                    $w[$i],      // Lebar
-                    $maxHeight,  // Tinggi
-                    $data[$i],   // Data
-                    1,           // Border
-                    $align[$i],  // Align
-                    false,       // Fill
-                    0,           // New line (0 = kanan, bukan bawah)
-                    '', '', true, 0, false, true, 
-                    $maxHeight,  
-                    'M'          // Valign Middle
+                    $w[$i], $maxHeight, $data[$i], 1, $align[$i], 
+                    false, 0, '', '', true, 0, false, true, $maxHeight, 'M'
                 );
-                
-                $x += $w[$i]; // Pindah ke kolom berikutnya
+                $x += $w[$i];
             }
-            
-            $this->Ln(); // Pindah baris setelah semua kolom
+            $this->Ln();
         }
     }
 
-    /**
-     * Menghitung tinggi baris berdasarkan kolom dengan teks terbanyak
-     */
     private function calculateRowHeight($data, $widths)
     {
         $nb = 0;
-        // TCPDF mengembalikan jumlah baris teks yang akan dicetak
         for ($i = 0; $i < count($data); $i++) {
             $text = (string) $data[$i];
             $nb = max($nb, $this->getNumLines($text, $widths[$i]));
         }
-        
-        // Tinggi per baris text (sekitar 5mm untuk font size 9)
-        $h = 5 * $nb; 
-        
-        // Tambahkan sedikit padding vertikal (2mm) agar tidak terlalu sesak
-        return max($h + 2, 8); // Minimal 8mm
+        return max(5 * $nb + 2, 8); 
     }
 
-    /**
-     * Footer Halaman
-     */
     public function Footer() {
         $this->SetY(-15);
-        $this->SetFont('times', 'I', 8);
-        // Garis pemisah footer
+        // GANTI FONT FOOTER
+        $this->SetFont('helvetica', 'I', 8);
         $this->Line(10, $this->GetY(), 287, $this->GetY());
         $this->Ln(2);
         $this->Cell(0, 10, 'Halaman ' . $this->getAliasNumPage() . ' dari ' . $this->getAliasNbPages(), 0, 0, 'R');

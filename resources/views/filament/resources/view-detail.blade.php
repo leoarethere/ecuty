@@ -1,5 +1,3 @@
-{{-- File: resources/views/filament/resources/cuti/view-detail.blade.php --}}
-
 @php
     use Carbon\Carbon;
     
@@ -10,12 +8,14 @@
         default => 'warning'
     };
     
-    // Hitung masa kerja
+    // --- PERBAIKAN MASA KERJA DISINI ---
     $masaKerja = '-';
     if ($record->employee->tanggal_bergabung) {
-        $tanggalBergabung = Carbon::parse($record->employee->tanggal_bergabung);
-        $years = $tanggalBergabung->diffInYears(now());
-        $months = $tanggalBergabung->copy()->addYears($years)->diffInMonths(now());
+        $joinDate = Carbon::parse($record->employee->tanggal_bergabung);
+        $diff = $joinDate->diff(now()); // Mengembalikan objek DateInterval
+        
+        $years = $diff->y; // Pasti Integer (Bulat)
+        $months = $diff->m; // Pasti Integer (Bulat)
         
         if ($years > 0) {
             $masaKerja = $years . ' Tahun' . ($months > 0 ? ' ' . $months . ' Bulan' : '');
@@ -23,6 +23,7 @@
             $masaKerja = $months . ' Bulan';
         }
     }
+    // -----------------------------------
     
     // Format tanggal cuti
     $tanggalCutiDisplay = '-';
