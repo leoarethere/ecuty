@@ -164,7 +164,7 @@
                         class="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800"
                         title="Pilih semua hari kerja (Sen-Jum) di bulan ini"
                     >
-                        Pilih Hari Kerja
+                        Pilih Semua Hari Kerja
                     </button>
                     <button 
                         type="button"
@@ -209,8 +209,6 @@
                     <label 
                         class="flex items-center justify-center p-2 cursor-pointer rounded-lg border-2 transition-all"
                         :class="{
-                            'bg-red-50 dark:bg-red-900/20': isWeekend(day),
-                            'bg-white dark:bg-gray-800': !isWeekend(day),
                             'opacity-40': isPastDate(day),
                             'hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20': !isPastDate(day),
                             'border-primary-600 bg-primary-100 dark:bg-primary-900/40 font-bold': isSelected(getDateString(day)),
@@ -227,8 +225,6 @@
                         <span 
                             class="text-sm"
                             :class="{
-                                'text-red-600 dark:text-red-400': isWeekend(day),
-                                'text-gray-900 dark:text-gray-100': !isWeekend(day),
                                 'font-bold text-primary-700 dark:text-primary-300': isSelected(getDateString(day))
                             }"
                             x-text="day"
