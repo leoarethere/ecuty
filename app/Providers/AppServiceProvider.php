@@ -2,8 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\Cuti;
+use App\Policies\CutiPolicy; // <-- Pastikan import ini ada
 use Illuminate\Support\Carbon;
-use Illuminate\Support\ServiceProvider; // <-- Pastikan import ini ada
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\ServiceProvider;
+
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,5 +27,6 @@ class AppServiceProvider extends ServiceProvider
         // Paksa Carbon menggunakan Bahasa Indonesia
         config(['app.locale' => 'id']);
         Carbon::setLocale('id');
+        Gate::policy(Cuti::class, CutiPolicy::class);
     }
 }

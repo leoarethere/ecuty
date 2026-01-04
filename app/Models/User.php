@@ -2,28 +2,22 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Filament\Panel;
 use App\Models\Employee;
 use App\Models\UnitKerja;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Notifications\Notifiable;
-use Filament\Models\Contracts\FilamentUser;
+use Illuminate\Notifications\Notifiable; // ✅ TAMBAHKAN INI
+use Filament\Models\Contracts\FilamentUser; // ✅ TAMBAHKAN INI
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable; 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser // ✅ IMPLEMENT INTERFACE
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
     use SoftDeletes;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'name',
         'email',
@@ -33,27 +27,28 @@ class User extends Authenticatable
         'unit_kerja_id',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+    
+    // ✅ TAMBAHKAN METHOD INI - SANGAT PENTING!
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // Mengizinkan semua user yang sudah login untuk mengakses panel 'admin'
+        // Anda bisa menambahkan logika khusus jika diperlukan
+        return true;
+        
+        // Atau jika ingin hanya role tertentu:
+        // return in_array($this->role, ['admin', 'kepala_stasiun', 'tata_usaha', 'ketua_tim', 'pegawai']);
     }
     
     public function employee(): HasOne
@@ -66,21 +61,17 @@ class User extends Authenticatable
         return $this->belongsTo(UnitKerja::class);
     }
     
-    // Tambahkan di dalam fungsi booted() yang sudah ada
     protected static function booted(): void
     {
         static::saved(function (User $user) {
-            // LOGIKA 1: Update Ketua Unit (Yang sudah Anda buat)
             if ($user->role === 'ketua_tim' && $user->unit_kerja_id) {
                 UnitKerja::where('id', $user->unit_kerja_id)
                     ->update(['ketua_user_id' => $user->id]);
             }
             
-            // LOGIKA 2 (BARU): Sinkronisasi ke Employee
-            // Jika user ini punya profil employee, update juga unit kerjanya
             if ($user->employee) {
                 $user->employee->unit_kerja_id = $user->unit_kerja_id;
-                $user->employee->saveQuietly(); // Simpan tanpa memicu event loop
+                $user->employee->saveQuietly();
             }
         });
     }
