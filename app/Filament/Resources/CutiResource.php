@@ -124,14 +124,11 @@ class CutiResource extends Resource
                     ->label('Jenis Cuti')
                     ->searchable(),
                     
-                TextColumn::make('tanggal_mulai') // ✅ Ganti dari 'tanggal_cuti' ke 'tanggal_mulai'
+                TextColumn::make('tanggal_mulai')
                     ->label('Tanggal Cuti')
-                    ->icon('heroicon-m-calendar-days') // Tambah ikon visual
+                    ->icon('heroicon-m-calendar-days')
                     ->sortable()
                     ->formatStateUsing(function ($record) {
-                        // --- LOGIKA TAMPILAN UTAMA (RANGE TANGGAL) ---
-                        
-                        // Ambil data tanggal dari array (sistem baru) atau kolom biasa (sistem lama)
                         if (!empty($record->tanggal_cuti_array) && is_array($record->tanggal_cuti_array)) {
                             $dates = collect($record->tanggal_cuti_array)->sort()->values();
                             $start = $dates->first();
@@ -146,46 +143,31 @@ class CutiResource extends Resource
                         $cStart = Carbon::parse($start);
                         $cEnd = $end ? Carbon::parse($end) : $cStart;
 
-                        // Skenario 1: Cuti cuma 1 hari
                         if ($cStart->isSameDay($cEnd)) {
                             return $cStart->isoFormat('D MMM Y');
                         }
 
-                        // Skenario 2: Range tanggal (Contoh: 10 - 12 Des 2025)
-                        // Jika tahun sama
                         if ($cStart->isSameYear($cEnd)) {
-                            // Jika bulan sama (10 - 12 Des 2025)
                             if ($cStart->isSameMonth($cEnd)) {
                                 return $cStart->format('d') . ' - ' . $cEnd->isoFormat('D MMM Y'); 
                             }
-                            // Jika bulan beda (30 Nov - 02 Des 2025)
                             return $cStart->isoFormat('D MMM') . ' - ' . $cEnd->isoFormat('D MMM Y');
                         }
                         
-                        // Jika beda tahun
                         return $cStart->isoFormat('D MMM Y') . ' - ' . $cEnd->isoFormat('D MMM Y');
                     })
                     ->description(function ($record) {
-                        // --- LOGIKA SUB-TEXT (DETAIL KECIL DI BAWAH TANGGAL) ---
-                        
                         if (!empty($record->tanggal_cuti_array) && is_array($record->tanggal_cuti_array)) {
                             $count = count($record->tanggal_cuti_array);
-                            
-                            // Jika tanggalnya acak/lompat-lompat, beri info "Acak"
-                            // Kita cek sederhana dengan membandingkan selisih hari vs jumlah item
                             $first = Carbon::parse(min($record->tanggal_cuti_array));
                             $last = Carbon::parse(max($record->tanggal_cuti_array));
                             $diffDays = $first->diffInDays($last) + 1;
-                            
                             $status = ($diffDays != $count) ? '(Acak)' : '';
-
                             return "Total: {$count} Hari {$status}";
                         }
-                        
                         return null; 
                     })
                     ->tooltip(function ($record) {
-                        // --- TOOLTIP SAAT HOVER (Tampilkan semua tanggal lengkap) ---
                         if (!empty($record->tanggal_cuti_array) && is_array($record->tanggal_cuti_array)) {
                             return collect($record->tanggal_cuti_array)
                                 ->sort()
@@ -196,7 +178,6 @@ class CutiResource extends Resource
                     })
                     ->wrap(),
 
-                // ✅ UPDATE: Hitung lama cuti dari array
                 TextColumn::make('lama_cuti')
                     ->label('Lama')
                     ->formatStateUsing(function ($record) {
@@ -219,46 +200,32 @@ class CutiResource extends Resource
                     ]),
             ])
             ->actions([
-            // ✅ FITUR BARU: Lihat Detail Pengajuan
-            Tables\Actions\ViewAction::make()
-                ->label('Lihat Detail')
-                ->icon('heroicon-o-eye')
-                ->color('info')
-                ->modalHeading(fn ($record) => 'Detail Pengajuan Cuti - ' . $record->employee->nama)
-                ->modalWidth('5xl')
-                ->modalContent(fn ($record) => view('filament.resources.cuti.view-detail', ['record' => $record]))
-                ->modalSubmitAction(false)
-                ->modalCancelActionLabel('Tutup'),
+                // ===== ACTION 1: VIEW DETAIL =====
+                Tables\Actions\ViewAction::make()
+                    ->label('Lihat Detail')
+                    ->icon('heroicon-o-eye')
+                    ->color('info')
+                    ->modalHeading(fn ($record) => 'Detail Pengajuan Cuti - ' . $record->employee->nama)
+                    ->modalWidth('5xl')
+                    ->modalContent(fn ($record) => view('filament.resources.cuti.view-detail', ['record' => $record]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup'),
                 
-            // PERBAIKAN: Edit hanya boleh jika status masih 'Menunggu Persetujuan Atasan Langsung'
-            Tables\Actions\EditAction::make()
-                ->visible(fn (Cuti $record) => 
-                    $record->status_global === 'Menunggu Persetujuan Atasan Langsung' && 
-                    Auth::id() === $record->employee->user_id // Hanya pemilik yg bisa edit (opsional)
-                ),
+                // ===== ACTION 2: EDIT (HANYA JIKA MASIH PENDING DAN PEMILIK) =====
+                Tables\Actions\EditAction::make()
+                    ->visible(fn (Cuti $record) => 
+                        $record->status_global === 'Menunggu Persetujuan Atasan Langsung' && 
+                        (Auth::user()->role === 'admin' || Auth::id() === $record->employee->user_id)
+                    ),
 
-            // PERBAIKAN: Hapus hanya boleh jika status masih 'Menunggu Persetujuan Atasan Langsung'
-            Tables\Actions\DeleteAction::make()
-                ->visible(fn (Cuti $record) => 
-                    $record->status_global === 'Menunggu Persetujuan Atasan Langsung'
-                ),
+                // ===== ACTION 3: DELETE (HANYA JIKA MASIH PENDING) =====
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn (Cuti $record) => 
+                        $record->status_global === 'Menunggu Persetujuan Atasan Langsung' &&
+                        (Auth::user()->role === 'admin' || Auth::id() === $record->employee->user_id)
+                    ),
 
-            // Action yang sudah ada sebelumnya
-            Action::make('exportFormPdf')
-                ->label('Cetak Form PDF')
-                ->icon('heroicon-o-printer')
-                ->color('danger')
-                ->action(function (Cuti $record) {
-                    return new StreamedResponse(function () use ($record) {
-                        app(FormCutiGenerator::class)->generate($record);
-                    }, 200, [
-                        'Content-Type' => 'application/pdf',
-                        'Content-Disposition' => 'inline; filename="formulir_cuti.pdf"',
-                    ]);
-                }),
-            ])
-            ->actions([
-                // === AKSI PDF ===
+                // ===== ACTION 4: CETAK PDF =====
                 Action::make('exportFormPdf')
                     ->label('Cetak Form PDF')
                     ->icon('heroicon-o-printer')
@@ -272,7 +239,7 @@ class CutiResource extends Resource
                         ]);
                     }),
 
-                // === AKSI TAHAP 1: KETUA TIM / ATASAN LANGSUNG ===
+                // ===== ACTION 5: PROSES KETUA UNIT =====
                 Action::make('Proses Atasan Langsung')
                     ->label('Proses (Ketua Unit)')
                     ->icon('heroicon-o-pencil')
@@ -280,7 +247,7 @@ class CutiResource extends Resource
                     ->visible(function (Cuti $record) {
                         $user = Auth::user();
                         $isKetuaUnit = $record->employee->unitKerja && 
-                                       $record->employee->unitKerja->ketua_user_id === $user->id;
+                                    $record->employee->unitKerja->ketua_user_id === $user->id;
                         return $isKetuaUnit && $record->status_global === 'Menunggu Persetujuan Atasan Langsung';
                     })
                     ->form([
@@ -299,7 +266,6 @@ class CutiResource extends Resource
                         if ($data['status_atasan_langsung'] === 'approved') {
                             $record->status_global = 'Menunggu Persetujuan Tata Usaha';
                             
-                            // === NOTIFIKASI KE TATA USAHA ===
                             $penerima = \App\Models\User::where('role', 'tata_usaha')->get();
                             
                             Notification::make()
@@ -323,7 +289,7 @@ class CutiResource extends Resource
                         $record->save();
                     }),
 
-                // === AKSI TAHAP 2: KASUBBAG TATA USAHA ===
+                // ===== ACTION 6: PROSES TATA USAHA =====
                 Action::make('Proses Tata Usaha')
                     ->icon('heroicon-o-pencil')
                     ->color('info')
@@ -368,7 +334,7 @@ class CutiResource extends Resource
                         $record->save();
                     }),
 
-                // === AKSI TAHAP 3: KEPALA STASIUN ===
+                // ===== ACTION 7: PROSES KEPALA STASIUN =====
                 Action::make('Proses Kepala Stasiun')
                     ->icon('heroicon-o-pencil')
                     ->color('info')
@@ -391,9 +357,8 @@ class CutiResource extends Resource
                         $employee = $record->employee;
 
                         if ($data['status_kepala'] === 'approved') {
-                            // ✅ UPDATE: Gunakan helper method untuk hitung durasi
                             if ($record->jenis_cuti === 'Cuti Tahunan') {
-                                $durasiCuti = $record->lama_cuti; // Helper method dari model
+                                $durasiCuti = $record->lama_cuti;
                                 
                                 if ($employee->sisa_cuti_tahunan >= $durasiCuti) {
                                     $employee->sisa_cuti_tahunan -= $durasiCuti;
@@ -403,7 +368,6 @@ class CutiResource extends Resource
 
                             $record->status_global = 'Disetujui';
 
-                            // === NOTIFIKASI SUKSES KE PEGAWAI ===
                             if ($employee->user) {
                                 Notification::make()
                                     ->title('Cuti DISETUJUI! 🎉')
@@ -419,7 +383,6 @@ class CutiResource extends Resource
                         } else {
                             $record->status_global = 'Ditolak (oleh Kepala Stasiun)';
                             
-                            // === NOTIFIKASI DITOLAK KE PEGAWAI ===
                             if ($employee->user) {
                                 Notification::make()
                                     ->title('Pengajuan Ditolak')
@@ -431,9 +394,6 @@ class CutiResource extends Resource
                         
                         $record->save();
                     }),
-
-                EditAction::make(),
-                DeleteAction::make(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
